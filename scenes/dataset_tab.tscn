@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://cuuew2v4inm7k"]
+
+[ext_resource type="Script" path="res://scripts/dataset_tab.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/bg.tscn" id="2_background"]
+
+[node name="DatasetWorkspace" type="Node2D" node_paths=PackedStringArray("camera")]
+script = ExtResource("1")
+window_name = "ds"
+camera = NodePath("Camera2D")
+
+[node name="bg" parent="." instance=ExtResource("2_background")]
+register_global = false
+
+[node name="Camera2D" type="Camera2D" parent="."]
+enabled = false

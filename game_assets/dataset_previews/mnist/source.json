@@ -1,0 +1,18 @@
+{
+  "source": "local_runtime/datasets/mnist/train.npz",
+  "sha256": "cad30f722834fc31623d7846ffd146afcda28673b2d72fe6b0579bd9c7e2113d",
+  "array": "x",
+  "indices": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "labels": [
+    5,
+    0,
+    4,
+    1
+  ],
+  "presentation": "Grayscale inverted onto light background; source values unchanged."
+}

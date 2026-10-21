@@ -1,0 +1,11 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://bvlhwv585y83q"]
+
+[ext_resource type="Shader" path="res://shaders/claude_node.gdshader" id="1_dyp00"]
+
+[resource]
+shader = ExtResource("1_dyp00")
+shader_parameter/header_color = Color(1, 1, 1, 1)
+shader_parameter/body_color = Color(1, 1, 1, 1)
+shader_parameter/corner_radius = 12.0
+shader_parameter/outline_width = 3.0
+shader_parameter/use_bg = true

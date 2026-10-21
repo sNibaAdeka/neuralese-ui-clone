@@ -1,0 +1,116 @@
+[gd_scene load_steps=7 format=3 uid="uid://bb1li7gs5rtsc"]
+
+[ext_resource type="PackedScene" uid="uid://dvy7srp0sk1qm" path="res://scenes/base_graph.tscn" id="1_q72yv"]
+[ext_resource type="PackedScene" uid="uid://cyyhr5tmi4ljw" path="res://scenes/Connection.tscn" id="2_kcfqd"]
+[ext_resource type="Script" uid="uid://dqkl4p7v8bw0c" path="res://scripts/softmax_node.gd" id="2_rnb4f"]
+[ext_resource type="Script" uid="uid://dtwj74o465brs" path="res://scripts/loc.gd" id="4_5bduk"]
+
+[ext_resource type="FontFile" path="res://game_assets/fonts/GolosText[wght].ttf" id="99_reference_sans"]
+
+[ext_resource type="FontVariation" path="res://resources/reference_title_font.tres" id="98_reference_title"]
+
+[sub_resource type="StyleBoxFlat" id="ReferencePill"]
+bg_color = Color(1, 1, 1, 0.7)
+corner_radius_top_left = 11
+corner_radius_top_right = 11
+corner_radius_bottom_left = 11
+corner_radius_bottom_right = 11
+
+[node name="Base" instance=ExtResource("1_q72yv")]
+script = ExtResource("2_rnb4f")
+server_typename = &"SoftmaxNode"
+
+[node name="o2" parent="." index="0" node_paths=PackedStringArray("parent_graph") instance=ExtResource("2_kcfqd")]
+layout_mode = 0
+offset_left = -72.0
+offset_top = -4.0
+offset_right = -64.0
+offset_bottom = 20.0
+color = Color(1, 0.890196, 0.588235, 1)
+_accepted_datatypes = "layer1d"
+server_name = &"layer_in"
+connection_type = 0
+area_paddings = Vector4(10, 10, 10, 10)
+origin_offset = Vector2(0, 12)
+max_splines_by_keyword = Dictionary[StringName, int]({
+&"train": 0
+})
+dir_vector = Vector2(-1, 0)
+parent_graph = NodePath("..")
+gradient_color = Color(1, 0.890196, 0.588235, 1)
+
+[node name="o" parent="." index="1" node_paths=PackedStringArray("parent_graph") instance=ExtResource("2_kcfqd")]
+layout_mode = 0
+offset_left = 36.0
+offset_top = -4.0
+offset_right = 44.0
+offset_bottom = 20.0
+color = Color(1, 0.890667, 0.59, 1)
+_accepted_datatypes = "layer1d"
+server_name = &"soft_out"
+connection_type = 1
+area_paddings = Vector4(10, 10, 10, 10)
+origin_offset = Vector2(4, 12)
+max_splines_by_keyword = Dictionary[StringName, int]({
+&"train": 0
+})
+parent_graph = NodePath("..")
+gradient_color = Color(1, 0.890196, 0.588235, 1)
+
+[node name="ColorRect" parent="." index="2"]
+instance_shader_parameters/outline_color = Color(1, 0.72, 0.874, 1)
+instance_shader_parameters/tuning = Color(0.31, 0.1147, 0.235135, 0.639216)
+offset_left = -68.0
+offset_top = -26.0
+offset_right = 40.0
+offset_bottom = 42.0
+
+[node name="Label" parent="ColorRect/root" index="0"]
+self_modulate = Color(1, 0.890196, 0.588235, 1)
+offset_left = 8.0
+offset_top = 15.0
+offset_right = 100.0
+offset_bottom = 37.0
+scale = Vector2(1, 1)
+text = "Softmax"
+horizontal_alignment = 1
+
+theme_override_font_sizes/font_size = 14
+
+theme_override_fonts/font = ExtResource("98_reference_title")
+
+[node name="Loc" type="Node" parent="ColorRect/root/Label" index="0"]
+script = ExtResource("4_5bduk")
+auto = true
+localizations_ru = Dictionary[String, String]({
+"_": "Софтмакс"
+})
+localizations_kz = Dictionary[String, String]({
+"_": "Софтмакс"
+})
+metadata/_custom_type_script = "uid://dtwj74o465brs"
+
+[node name="OutputDescription" type="Label" parent="."]
+layout_mode = 0
+offset_left = -48.0
+offset_top = 12.0
+offset_right = 20.0
+offset_bottom = 34.0
+mouse_filter = 2
+theme_override_fonts/font = ExtResource("99_reference_sans")
+theme_override_font_sizes/font_size = 12
+text = "Probabilities"
+horizontal_alignment = 1
+
+metadata/reference_preserve_style = true
+
+theme_override_colors/font_color = Color(0.68, 0.30, 0.08, 1)
+
+theme_override_styles/normal = SubResource("ReferencePill")
+
+[node name="Loc" type="Node" parent="OutputDescription"]
+script = ExtResource("4_5bduk")
+auto = true
+localizations_ru = Dictionary[String, String]({
+"_": "в доли"
+})

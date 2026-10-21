@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "augment_tf",
+  "source": {
+    "kind": "scene",
+    "path": "res://scenes/augment_tune.tscn"
+  },
+  "load_order": 70,
+  "menu": {
+    "visible": false,
+    "section": "composition",
+    "order": 50
+  },
+  "roles": [],
+  "llm": {
+    "type": "augment_tune"
+  },
+  "runtime": {},
+  "display": {
+    "title": {
+      "en": "Image Tuning",
+      "ru": "Изменение изображения",
+      "kz": "Кескінді баптау"
+    }
+  }
+}

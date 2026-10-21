@@ -1,0 +1,9 @@
+[gd_resource type="FontVariation" load_steps=2 format=3]
+
+[ext_resource type="FontFile" path="res://game_assets/fonts/GolosText[wght].ttf" id="1_golos"]
+
+[resource]
+base_font = ExtResource("1_golos")
+variation_opentype = {
+2003265652: 600
+}

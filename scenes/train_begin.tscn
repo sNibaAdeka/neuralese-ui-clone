@@ -1,0 +1,413 @@
+[gd_scene format=3 uid="uid://274a5p56vhfv"]
+
+[ext_resource type="FontFile" path="res://game_assets/fonts/GolosText[wght].ttf" id="99_claude_sans"]
+
+[ext_resource type="Script" uid="uid://c0nii2r70t0mx" path="res://scripts/train_begin.gd" id="1_oiu5h"]
+[ext_resource type="PackedScene" uid="uid://cyyhr5tmi4ljw" path="res://scenes/Connection.tscn" id="2_oiu5h"]
+[ext_resource type="Material" uid="uid://c556teg3qs0aw" path="res://resources/graph.tres" id="3_rbfmr"]
+[ext_resource type="Theme" uid="uid://cx365ld2mgjne" path="res://resources/theme_base.tres" id="4_twvuy"]
+[ext_resource type="Script" uid="uid://csr1vy1phvsob" path="res://scripts/sakuta.gd" id="5_8dwpr"]
+[ext_resource type="PackedScene" uid="uid://wd63efdi6bdn" path="res://scenes/BaseBComponent.tscn" id="5_v08dh"]
+[ext_resource type="Script" uid="uid://dx40hpbce8w60" path="res://scripts/button_config.gd" id="6_8dwpr"]
+[ext_resource type="Script" uid="uid://bjncugq5805ty" path="res://scripts/label_auto_resize.gd" id="6_bo1ga"]
+[ext_resource type="Theme" uid="uid://cxe1714v2p0a1" path="res://resources/theme.tres" id="6_qoxl0"]
+[ext_resource type="PackedScene" uid="uid://cbe74hclhjp0e" path="res://scenes/validate.tscn" id="7_bo1ga"]
+[ext_resource type="Script" uid="uid://b0wh6bvd6pdc5" path="res://scripts/validate_number.gd" id="8_qoxl0"]
+[ext_resource type="Script" uid="uid://dtwj74o465brs" path="res://scripts/loc.gd" id="12_5puut"]
+
+[sub_resource type="Resource" id="Resource_5puut"]
+script = ExtResource("6_8dwpr")
+as_mult = true
+hover_color = Color(1.1, 1.1, 1.1, 1)
+hover_mult = 1.3
+_hover_scale = 1.05
+press_color = Color(0.72, 0.72, 0.72, 1)
+_press_scale = 0.98
+animation_scale = 19.697
+animation_speed = 3.473
+animation_decay = 6.0
+animation_duration = 1.359
+metadata/_custom_type_script = "uid://dx40hpbce8w60"
+
+[sub_resource type="Resource" id="Resource_qoxl0"]
+script = ExtResource("6_8dwpr")
+as_mult = true
+hover_color = Color(1.1, 1.1, 1.1, 1)
+hover_mult = 1.3
+_hover_scale = 1.0
+press_color = Color(0.72, 0.72, 0.72, 1)
+_press_scale = 1.0
+animation_scale = 19.697
+animation_speed = 3.473
+animation_decay = 6.0
+animation_duration = 1.359
+metadata/_custom_type_script = "uid://dx40hpbce8w60"
+
+[node name="Base" type="Control" unique_id=944833454]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 200.0
+offset_bottom = 50.0
+script = ExtResource("1_oiu5h")
+server_typename = &"TrainBegin"
+is_input = true
+is_train_graph = true
+area_padding = 0.0
+learning_layout = true
+
+[node name="o2" parent="." unique_id=103239676 node_paths=PackedStringArray("parent_graph") instance=ExtResource("2_oiu5h")]
+scale = Vector2(1, 1)
+instance_shader_parameters/corner_radius_width_add = Vector2(2, 0)
+layout_mode = 0
+offset_left = -93.0
+offset_top = -12.0
+offset_right = -83.0
+offset_bottom = 12.0
+color = Color(0.14, 0.62, 0.86, 1)
+config_conn = true
+_accepted_datatypes = "dataset_type"
+server_name = &"netname"
+connection_type = 0
+area_paddings = Vector4(20, 20, 20, 20)
+origin_offset = Vector2(0, 0)
+max_splines_by_keyword = Dictionary[StringName, int]({
+&"train": 0
+})
+dir_vector = Vector2(-1, 0)
+parent_graph = NodePath("..")
+conn_count_keyword = "netname"
+gradient_color = Color(0.82, 0.64, 1, 1)
+
+[node name="i" parent="." unique_id=1298304813 node_paths=PackedStringArray("parent_graph") instance=ExtResource("2_oiu5h")]
+scale = Vector2(1, 1)
+layout_mode = 0
+offset_left = 83.0
+offset_top = -12.0
+offset_right = 93.0
+offset_bottom = 12.0
+color = Color(0.14, 0.62, 0.86, 1)
+_accepted_datatypes = "data"
+server_name = &"input_out"
+connection_type = 1
+area_paddings = Vector4(20, 20, 20, 20)
+origin_offset = Vector2(0, 0)
+parent_graph = NodePath("..")
+conn_count_keyword = "train"
+gradient_color = Color(0.462745, 0.45098, 0.85098, 1)
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=1202238448]
+scale = Vector2(1, 1)
+material = ExtResource("3_rbfmr")
+instance_shader_parameters/corner_radius_width_add = Vector2(-3, 0)
+instance_shader_parameters/outline_color = Color(0.693883, 0.6885, 0.85, 1)
+instance_shader_parameters/tuning = Color(0, 0, 0, 0.639216)
+layout_mode = 0
+offset_left = -88.0
+offset_top = -92.0
+offset_right = 88.0
+offset_bottom = 92.0
+mouse_filter = 2
+
+[node name="root" type="Control" parent="ColorRect" unique_id=1358560029]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Label" type="Label" parent="ColorRect/root" unique_id=2144526450]
+base_size = Vector2(150, 23)
+self_modulate = Color(1, 1, 1, 1)
+z_index = 1
+layout_mode = 0
+offset_left = 14.0
+offset_top = 12.0
+offset_right = 164.0
+offset_bottom = 35.0
+scale = Vector2(1, 1)
+theme = ExtResource("4_twvuy")
+text = "TrainBegin"
+theme_override_font_sizes/font_size = 14
+theme_override_fonts/font = ExtResource("99_claude_sans")
+
+[node name="Loc" type="Node" parent="ColorRect/root/Label" unique_id=1092409052]
+script = ExtResource("12_5puut")
+auto = true
+localizations_ru = Dictionary[String, String]({
+"_": "Начать обучение"
+})
+localizations_kz = Dictionary[String, String]({
+"_": "ОқытуБастау"
+})
+metadata/_custom_type_script = "uid://dtwj74o465brs"
+
+[node name="ColorRect2" type="ColorRect" parent="." unique_id=1042916881]
+scale = Vector2(1, 1)
+material = ExtResource("3_rbfmr")
+instance_shader_parameters/corner_radius_width_add = Vector2(-8, -1.3)
+instance_shader_parameters/outline_color = Color(1, 1, 1, 0.58431375)
+instance_shader_parameters/tuning = Color(1, 1, 1, 0.5137255)
+layout_mode = 0
+offset_left = -78.0
+offset_top = -42.0
+offset_right = 78.0
+offset_bottom = 26.0
+mouse_filter = 2
+color = Color(0.34, 0.34, 0.34, 0.5882353)
+
+[node name="Control" type="Control" parent="ColorRect2" unique_id=1647971942 node_paths=PackedStringArray("base")]
+visible = false
+anchors_preset = 0
+offset_right = 222.0
+offset_bottom = 144.0
+script = ExtResource("5_8dwpr")
+base = NodePath("ScrollContainer/VBoxContainer/Control")
+offset_left = 0.0
+offset_top = 0.0
+
+[node name="ScrollContainer" type="ScrollContainer" parent="ColorRect2/Control" unique_id=1930245562]
+layout_mode = 0
+offset_top = 44.0
+offset_right = 222.0
+offset_bottom = 144.0
+offset_left = 0.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ColorRect2/Control/ScrollContainer" unique_id=1110819244]
+layout_mode = 2
+
+[node name="Control" type="Control" parent="ColorRect2/Control/ScrollContainer/VBoxContainer" unique_id=1000258250]
+custom_minimum_size = Vector2(206, 52)
+layout_mode = 2
+
+[node name="name" type="Label" parent="ColorRect2/Control/ScrollContainer/VBoxContainer/Control" unique_id=1608492132]
+layout_mode = 0
+offset_left = 6.0
+offset_top = 0.0
+offset_right = 302.0
+offset_bottom = 43.0
+scale = Vector2(0.4375, 0.4375)
+pivot_offset = Vector2(0, 0)
+theme = ExtResource("6_qoxl0")
+theme_override_font_sizes/font_size = 27
+text = "hiiiii"
+script = ExtResource("6_bo1ga")
+auto_get_base_size = true
+padding = Vector2(0, 0)
+min_scale = 0.0
+parent_indep = true
+base_size = Vector2(120.65209, 43)
+simple = true
+simple_letters = 16
+unscaled_size = true
+pivoting = false
+metadata/_custom_type_script = "uid://bjncugq5805ty"
+theme_override_fonts/font = ExtResource("99_claude_sans")
+
+[node name="dtype" type="Label" parent="ColorRect2/Control/ScrollContainer/VBoxContainer/Control" unique_id=599734075]
+self_modulate = Color(1, 1, 1, 1)
+layout_mode = 0
+offset_left = 148.0
+offset_top = 7.0
+offset_right = 206.0
+offset_bottom = 27.0
+scale = Vector2(1, 1)
+pivot_offset = Vector2(0, 0)
+theme = ExtResource("6_qoxl0")
+theme_override_font_sizes/font_size = 12
+text = "bool"
+script = ExtResource("6_bo1ga")
+auto_get_base_size = true
+padding = Vector2(0, 0)
+min_scale = 0.0
+parent_indep = true
+base_size = Vector2(58, 20)
+simple_letters = 10
+unscaled_size = true
+pivoting = false
+metadata/_custom_type_script = "uid://bjncugq5805ty"
+theme_override_fonts/font = ExtResource("99_claude_sans")
+
+[node name="value" type="Label" parent="ColorRect2/Control/ScrollContainer/VBoxContainer/Control" unique_id=841260903]
+layout_mode = 0
+offset_left = 6.0
+offset_top = 30.0
+offset_right = 206.0
+offset_bottom = 50.0
+scale = Vector2(1, 1)
+theme = ExtResource("6_qoxl0")
+theme_override_font_sizes/font_size = 14
+text = "0/1"
+horizontal_alignment = 0
+autowrap_mode = 3
+theme_override_fonts/font = ExtResource("99_claude_sans")
+
+[node name="Label2" type="Label" parent="ColorRect2/Control" unique_id=1257683671]
+modulate = Color(1, 1, 1, 1)
+layout_mode = 0
+offset_left = 8.0
+offset_top = 4.0
+offset_right = 154.0
+offset_bottom = 28.0
+scale = Vector2(1, 1)
+pivot_offset = Vector2(0, 0)
+theme = ExtResource("6_qoxl0")
+theme_override_font_sizes/font_size = 14
+text = "mnistgt"
+script = ExtResource("6_bo1ga")
+auto_get_base_size = true
+padding = Vector2(0, 0)
+min_scale = 0.0
+parent_indep = true
+base_size = Vector2(146, 24)
+simple_letters = 10
+unscaled_size = true
+debug = false
+pivoting = false
+metadata/_custom_type_script = "uid://bjncugq5805ty"
+theme_override_fonts/font = ExtResource("99_claude_sans")
+
+[node name="Label3" type="Label" parent="ColorRect2/Control" unique_id=1094817245]
+self_modulate = Color(1, 1, 1, 1)
+layout_mode = 0
+offset_left = 158.0
+offset_top = 4.0
+offset_right = 214.0
+offset_bottom = 28.0
+scale = Vector2(1, 1)
+pivot_offset = Vector2(0, 0)
+theme = ExtResource("6_qoxl0")
+theme_override_font_sizes/font_size = 13
+text = "32kk"
+horizontal_alignment = 2
+script = ExtResource("6_bo1ga")
+auto_get_base_size = true
+padding = Vector2(0, 0)
+min_scale = 0.0
+parent_indep = true
+base_size = Vector2(56, 24)
+simple_letters = 10
+unscaled_size = true
+debug = false
+pivoting = false
+metadata/_custom_type_script = "uid://bjncugq5805ty"
+theme_override_fonts/font = ExtResource("99_claude_sans")
+
+[node name="train" parent="." unique_id=955625824 node_paths=PackedStringArray("graph") instance=ExtResource("5_v08dh")]
+auto_wrap = false
+instance_shader_parameters/corner_radius_width_add = Vector2(-9, 0)
+instance_shader_parameters/extents = Vector2(0, 0)
+layout_mode = 0
+offset_left = -78.0
+offset_top = 35.0
+offset_right = 46.0
+offset_bottom = 69.0
+scale = Vector2(1, 1)
+pivot_offset = Vector2(0, 0)
+mouse_filter = 1
+color = Color(0.6045, 0.93, 0.631625, 1)
+button_type = 1
+base_scale_x = 0.4375
+resize_after = 0
+text = "Учись!"
+base_size = Vector2(124, 34)
+alignment = Vector2(0, 0)
+expanded_size = 98
+arrangement_padding = Vector2(5, 5)
+mouse_open = false
+menu_name = &"g"
+max_size = 170
+config = SubResource("Resource_5puut")
+graph = NodePath("..")
+
+[node name="Loc" type="Node" parent="train" unique_id=408677217]
+script = ExtResource("12_5puut")
+auto = true
+localizations_ru = Dictionary[String, String]({
+"train": "Учись!"
+})
+localizations_kz = Dictionary[String, String]({
+"train": "Оку!"
+})
+metadata/_custom_type_script = "uid://dtwj74o465brs"
+
+[node name="YY" parent="." unique_id=720306508 instance=ExtResource("7_bo1ga")]
+alignment = 1
+z_index = 1
+layout_mode = 0
+offset_left = -18.0
+offset_top = -10.0
+offset_right = 47.0
+offset_bottom = 16.0
+scale = Vector2(1, 1)
+placeholder_text = "1"
+max_length = 3
+expand_to_text_length = false
+context_menu_enabled = false
+emoji_menu_enabled = false
+virtual_keyboard_type = 2
+script = ExtResource("8_qoxl0")
+min_value = 1.0
+max_value = 65536.0
+allow_float = false
+decimal_places = 2
+empty_on_min = true
+resize_after = 4
+change_always_accepted = false
+custom_minimum_size = Vector2(65, 26)
+theme_override_font_sizes/font_size = 14
+theme_override_fonts/font = ExtResource("99_claude_sans")
+tooltip_text = "Epochs · Эпохи · Эпохалар"
+
+[node name="train2" parent="." unique_id=920414280 instance=ExtResource("5_v08dh")]
+tooltip_text = "Сбросить обучение и веса модели"
+auto_wrap = false
+z_index = 3
+instance_shader_parameters/corner_radius_width_add = Vector2(-8, 0)
+instance_shader_parameters/extents = Vector2(0, 0)
+layout_mode = 0
+offset_left = 54.0
+offset_top = 38.0
+offset_right = 78.0
+offset_bottom = 66.0
+scale = Vector2(1, 1)
+pivot_offset = Vector2(0, 0)
+mouse_filter = 1
+color = Color(0.59, 0.59, 0.59, 1)
+button_type = 1
+hint = &"login"
+base_scale_x = 0.46875
+resize_after = 0
+text = "↻"
+base_size = Vector2(24, 28)
+alignment = Vector2(0, 0)
+expanded_size = 98
+arrangement_padding = Vector2(5, 5)
+mouse_open = false
+menu_name = &"g"
+max_size = 170
+config = SubResource("Resource_qoxl0")
+
+[node name="EpochsLabel" type="Label" parent="."]
+base_size = Vector2(47, 24)
+self_modulate = Color(1, 1, 1, 1)
+scale = Vector2(1, 1)
+layout_mode = 0
+offset_left = -68.0
+offset_top = -11.0
+offset_right = -21.0
+offset_bottom = 13.0
+mouse_filter = 2
+theme_override_fonts/font = ExtResource("99_claude_sans")
+theme_override_font_sizes/font_size = 12
+text = "Учимся"
+
+[node name="Loc" type="Node" parent="EpochsLabel"]
+script = ExtResource("12_5puut")
+auto = false
+localizations_ru = Dictionary[String, String]({
+"_": "Эпохи"
+})
+localizations_kz = Dictionary[String, String]({
+"_": "Эпохалар"
+})
+
+[connection signal="released" from="train" to="." method="_on_train_released"]
+[connection signal="released" from="train2" to="." method="_on_train_2_released"]

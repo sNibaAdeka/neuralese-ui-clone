@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "classifier",
+  "source": {
+    "kind": "scene",
+    "path": "res://scenes/classifier_graph.tscn"
+  },
+  "load_order": 130,
+  "menu": {
+    "visible": true,
+    "section": "inputs_outputs",
+    "order": 2
+  },
+  "roles": [],
+  "llm": {
+    "type": "out_labels"
+  },
+  "runtime": {
+    "handler": "passthrough",
+    "default_input_port": "model_in",
+    "default_output_port": "model_out"
+  },
+  "display": {
+    "title": {
+      "en": "LabelGroup",
+      "ru": "ВыводОтвет",
+      "kz": "ҚорытЖауап"
+    },
+    "outline_color": "#9ad6c5ff"
+  }
+}

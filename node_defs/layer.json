@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "layer",
+  "source": {
+    "kind": "scene",
+    "path": "res://scenes/layer.tscn"
+  },
+  "load_order": 90,
+  "menu": {
+    "visible": true,
+    "section": "layers",
+    "order": 20
+  },
+  "roles": [],
+  "llm": {
+    "type": "dense_layer"
+  },
+  "runtime": {
+    "handler": "neuron_layer",
+    "aliases": [
+      "dense_layer"
+    ],
+    "default_input_port": "layer_in",
+    "default_output_port": "layer_out"
+  },
+  "display": {
+    "title": {
+      "en": "DenseLayer",
+      "ru": "ПлотнСлой",
+      "kz": "ТығызҚабат"
+    }
+  }
+}
