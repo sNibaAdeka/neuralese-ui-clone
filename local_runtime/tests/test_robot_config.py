@@ -29,6 +29,44 @@ def ev3_config(**overrides):
     return base
 
 
+class InvalidValueRegressionTests(unittest.TestCase):
+    def test_godot_integral_float_numbers_compile_and_keep_script_fingerprint(self):
+        import json
+        original = ev3_config(outputs=[{"channel": "motor_a_speed", "mode": "threshold", "index": 0}])
+        godot = json.loads(json.dumps(original), parse_int=float)
+        self.assertTrue(cfg.validate_config(godot, {"input_size": 1, "output_size": 1}).ok)
+        plan = cfg.compile_config(godot)
+        self.assertEqual(plan.rate_hz, 20)
+        self.assertEqual(cfg.config_hash(original), cfg.config_hash(godot))
+
+    def test_fractional_integer_fields_are_rejected(self):
+        for field in ("schema_version", "rate_hz", "watchdog_ms"):
+            self.assertFalse(cfg.validate_config(ev3_config(**{field: 1.5})).ok)
+
+    def test_schema_timing_and_tcp_types_are_rejected(self):
+        for field, values in {
+            "schema_version": ["garbage", True, None, 0, 2],
+            "rate_hz": [True, 0],
+            "watchdog_ms": [False, 0],
+        }.items():
+            for value in values:
+                with self.subTest(field=field, value=value):
+                    self.assertFalse(cfg.validate_config(ev3_config(**{field: value})).ok)
+        for value in (0, 65536, True, "9999", None):
+            self.assertFalse(cfg.validate_config(ev3_config(transport={"kind": "tcp", "host": "localhost", "port": value})).ok)
+
+    def test_nonfinite_scaling_is_rejected(self):
+        for value in (float("nan"), float("inf"), -float("inf"), 10 ** 1000):
+            config = ev3_config(inputs=[{"channel": "touch_1", "scale": {"kind": "linear", "in_min": 0, "in_max": 1, "out_min": 0, "out_max": value}}])
+            self.assertFalse(cfg.validate_config(config).ok)
+
+    def test_threshold_values_are_checked_before_run(self):
+        for field in ("threshold", "on_value", "off_value"):
+            for value in ("fast", True, float("nan"), float("inf")):
+                config = ev3_config(outputs=[{"channel": "motor_a_speed", "mode": "threshold", field: value}])
+                self.assertFalse(cfg.validate_config(config).ok)
+
+
 class ScaleTests(unittest.TestCase):
     def test_linear_maps_endpoints_and_midpoint(self) -> None:
         scale = cfg.linear_scale(0, 100, -1.0, 1.0)

@@ -38,7 +38,7 @@ def robot_config(**overrides):
     base = {
         "schema_version": 1,
         "platform": "ev3",
-        "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 0},
+        "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 9999},
         "rate_hz": 20,
         "watchdog_ms": 400,
         "inputs": [
@@ -265,6 +265,18 @@ class MotorCommandCacheTests(Ev3EmulatorTestCase):
         self.assertEqual(motor.commands, [500, "stop"])
 
 
+    def test_a_failed_first_stop_does_not_skip_the_second_motor(self) -> None:
+        first = self.FlakyMotor(fail_stops=1)
+        second = self.FlakyMotor()
+        self.device.namespace["_motor_a"] = first
+        self.device.namespace["_motor_b"] = second
+        with self.assertRaises(OSError):
+            self.device.safe_stop()
+        self.assertEqual(second.commands, ["stop"])
+        self.device.safe_stop()
+        self.assertEqual(first.commands, ["stop"])
+
+
 class SafetyTests(Ev3EmulatorTestCase):
     def test_the_robot_stops_itself_when_the_host_goes_away(self) -> None:
         # The rule that matters most: the child unplugs the laptop, or Neuralese
@@ -285,6 +297,20 @@ class SafetyTests(Ev3EmulatorTestCase):
             self.arena.motor_command(MOTOR_A), "stop",
             "The EV3 kept its last motor command after the host went silent.",
         )
+
+    def test_watchdog_stops_motors_with_the_socket_still_open(self) -> None:
+        self.connect(ScriptedEngine([1.0, 0.0]))
+        self.assertTrue(self.pump_until(lambda: self.arena.motor_command(MOTOR_A) == "run-forever"))
+        # Do not poll the host bridge or close either peer: only the device
+        # watchdog can stop these motors while the connection remains open.
+        deadline = time.monotonic() + DEADLINE_S
+        while time.monotonic() < deadline:
+            if self.arena.motor_command(MOTOR_A) == "stop":
+                break
+            time.sleep(0.01)
+        self.assertEqual(self.arena.motor_command(MOTOR_A), "stop")
+        self.assertEqual(self.arena.motor_command(MOTOR_B), "stop")
+        self.assertTrue(self.bridge.transport.is_open)
 
     def test_the_host_reports_the_link_as_stalled_when_the_robot_goes_quiet(self) -> None:
         self.connect(ScriptedEngine([1.0, 0.0]))

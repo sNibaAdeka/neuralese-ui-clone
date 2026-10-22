@@ -106,7 +106,17 @@ def apply_outputs(values):
 
 
 def safe_stop():
-    apply_outputs(SAFE)
+    failure = None
+    try:
+        _drive_motor(_motor_a, 0)
+    except Exception as exc:
+        failure = exc
+    try:
+        _drive_motor(_motor_b, 0)
+    except Exception as exc:
+        failure = exc
+    if failure is not None:
+        raise failure
 
 
 def serve_one_session(connection):

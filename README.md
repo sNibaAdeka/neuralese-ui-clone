@@ -85,6 +85,8 @@ Local model training uses the Python runtime described below; it does not requir
 
 From a terminal, `godot --path .` starts the project. For development against a local HTTP API use `godot --path . -- --local-api`; no source edit is needed.
 
+EV3 configuration and safe bundle export are available from the Export window. See [the EV3 workflow](docs/ev3-export-workflow.md) for mapping, validation and current hardware limitations.
+
 Opening source in the editor is not a packaged release. Windows/macOS exports need their platform runtime payload and manifest. Physical EV3, remote Axon and account flows require their respective hardware/services and cannot be validated by local editor tests alone.
 
 ---

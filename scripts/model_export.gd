@@ -5,6 +5,7 @@ const ExportResult = preload("res://scripts/export_result.gd")
 
 var _model_export_busy := false
 var _project_export_busy := false
+var _robot_export_dialog: Window
 
 func _ready() -> void:
 	super()
@@ -20,8 +21,12 @@ func _ready() -> void:
 	else:
 		_on_int_8_released()
 	_skin_export_chrome.call_deferred()
+	_add_robot_export_button.call_deferred()
 
 func _process(delta: float) -> void:
+	# SplashMenu polls global Enter/Escape; keep it inert while the child owns focus.
+	if is_instance_valid(_robot_export_dialog) and _robot_export_dialog.blocks_parent_input():
+		return
 	super(delta)
 
 func _splash():
@@ -230,3 +235,24 @@ func _skin_export_chrome() -> void:
 		if str(sprite.name) in ["i", "Download"]:
 			sprite.texture = icon
 			sprite.modulate = Color.WHITE
+
+
+func _add_robot_export_button() -> void:
+	var button := Button.new()
+	button.name = "EV3Export"
+	button.text = "EV3 · Настроить и экспортировать…"
+	button.tooltip_text = "Локальная обученная модель → датчики и моторы → пакет для ручного переноса"
+	button.theme = Design.create_theme()
+	button.position = Vector2(40, 273)
+	button.size = Vector2(341, 36)
+	$ColorRect.add_child(button)
+	button.pressed.connect(_open_robot_export)
+
+func _open_robot_export() -> void:
+	if _model_export_busy or _project_export_busy:
+		return
+	if not is_instance_valid(_robot_export_dialog):
+		_robot_export_dialog = preload("res://scripts/robot_export_dialog.gd").new()
+		add_child(_robot_export_dialog)
+	var input = graphs.get_input_graph_by_name($ColorRect/Label.text)
+	_robot_export_dialog.open_for(input, str(glob.get_project_id()), nn)

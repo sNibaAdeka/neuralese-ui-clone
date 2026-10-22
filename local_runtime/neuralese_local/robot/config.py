@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .codec import MAX_LINE_BYTES, SEQ_MOD
@@ -284,7 +285,7 @@ def validate_config(config: Dict[str, Any], model_meta: Optional[Dict[str, Any]]
         return report
 
     version = config.get("schema_version", SCHEMA_VERSION)
-    if int(version or 0) > SCHEMA_VERSION:
+    if not _whole_number(version) or version != SCHEMA_VERSION:
         report.error(
             ERR_BAD_CONFIG,
             "This robot config was written by a newer version of Neuralese "
@@ -326,17 +327,22 @@ def _validate_transport(transport: Any, platform, report: ValidationReport) -> N
             supported=list(platform.transports),
         )
         return
-    if kind == TRANSPORT_TCP and not str(transport.get("host", "")).strip():
-        report.error(ERR_BAD_CONFIG, "A TCP link needs the robot's address.", field="transport.host")
+    if kind == TRANSPORT_TCP:
+        host = transport.get("host", "")
+        if not isinstance(host, str) or not host.strip():
+            report.error(ERR_BAD_CONFIG, "A TCP link needs the robot's address.", field="transport.host")
+        port = transport.get("port", 9999)
+        if not _whole_number(port) or not 1 <= port <= 65535:
+            report.error(ERR_BAD_CONFIG, "TCP port must be between 1 and 65535.", field="transport.port")
     if kind == TRANSPORT_SERIAL:
         baud = transport.get("baud", 115200)
-        if not isinstance(baud, int) or baud <= 0:
+        if not _whole_number(baud) or baud <= 0:
             report.error(ERR_BAD_CONFIG, "Serial baud rate must be a positive whole number.", field="transport.baud")
 
 
 def _validate_timing(config: Dict[str, Any], platform, report: ValidationReport) -> None:
     rate = config.get("rate_hz", platform.default_rate_hz)
-    if not isinstance(rate, int) or rate < MIN_RATE_HZ:
+    if not _whole_number(rate) or rate < MIN_RATE_HZ:
         report.error(ERR_BAD_CONFIG, "Update rate must be a whole number of hertz, at least %d." % MIN_RATE_HZ, field="rate_hz")
     elif rate > platform.max_rate_hz:
         report.error(
@@ -347,13 +353,13 @@ def _validate_timing(config: Dict[str, Any], platform, report: ValidationReport)
         )
 
     watchdog = config.get("watchdog_ms", platform.default_watchdog_ms)
-    if not isinstance(watchdog, int) or not MIN_WATCHDOG_MS <= watchdog <= MAX_WATCHDOG_MS:
+    if not _whole_number(watchdog) or not MIN_WATCHDOG_MS <= watchdog <= MAX_WATCHDOG_MS:
         report.error(
             ERR_BAD_CONFIG,
             "The safety timeout must be between %d and %d milliseconds." % (MIN_WATCHDOG_MS, MAX_WATCHDOG_MS),
             field="watchdog_ms",
         )
-    elif isinstance(rate, int) and rate >= MIN_RATE_HZ and watchdog < (2000 // rate):
+    elif _whole_number(rate) and rate >= MIN_RATE_HZ and watchdog < (2000 // rate):
         # Shorter than two update periods and ordinary jitter trips the
         # watchdog, so the robot stutters to a halt on a perfectly healthy link.
         report.warn(
@@ -363,6 +369,18 @@ def _validate_timing(config: Dict[str, Any], platform, report: ValidationReport)
             field="watchdog_ms",
             recommended_ms=2000 // rate,
         )
+
+
+def _whole_number(value: Any) -> bool:
+    # Godot's JSON parser represents every JSON number as a float.
+    return _finite_number(value) and value == int(value)
+
+
+def _finite_number(value: Any) -> bool:
+    try:
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    except OverflowError:
+        return False
 
 
 def _validate_scale(scale: Any, field: str, report: ValidationReport) -> None:
@@ -378,7 +396,7 @@ def _validate_scale(scale: Any, field: str, report: ValidationReport) -> None:
     if kind == SCALE_LINEAR:
         for key in ("in_min", "in_max", "out_min", "out_max"):
             value = scale.get(key)
-            if not isinstance(value, (int, float)) or isinstance(value, bool):
+            if not _finite_number(value):
                 report.error(ERR_BAD_CONFIG, "Scaling value '%s' must be a number." % key, field="%s.%s" % (field, key))
                 return
         if float(scale["in_min"]) == float(scale["in_max"]):
@@ -449,7 +467,7 @@ def _validate_outputs(outputs: Any, platform, report: ValidationReport) -> None:
 
         if mode == MODE_DIRECT:
             model_index = entry.get("index", 0)
-            if not isinstance(model_index, int) or isinstance(model_index, bool) or model_index < 0:
+            if not _whole_number(model_index) or model_index < 0:
                 report.error(ERR_BAD_CONFIG, "Output index must be a whole number of 0 or more.", field=field + ".index")
             _validate_scale(entry.get("scale"), field + ".scale", report)
         elif mode == MODE_ARGMAX:
@@ -464,7 +482,7 @@ def _validate_outputs(outputs: Any, platform, report: ValidationReport) -> None:
             for key, value in classes.items():
                 if not str(key).lstrip("-").isdigit():
                     report.error(ERR_BAD_CONFIG, "Class key '%s' is not a class number." % key, field=field + ".classes")
-                elif not isinstance(value, (int, float)) or isinstance(value, bool):
+                elif not _finite_number(value):
                     report.error(ERR_BAD_CONFIG, "Class '%s' must map to a number." % key, field=field + ".classes")
                 elif not (channel.native_min <= float(value) <= channel.native_max):
                     report.error(
@@ -474,10 +492,14 @@ def _validate_outputs(outputs: Any, platform, report: ValidationReport) -> None:
                         field=field + ".classes",
                     )
         elif mode == MODE_THRESHOLD:
-            if not isinstance(entry.get("threshold", 0.5), (int, float)) or isinstance(entry.get("threshold"), bool):
+            if not _finite_number(entry.get("threshold", 0.5)):
                 report.error(ERR_BAD_CONFIG, "Threshold must be a number.", field=field + ".threshold")
+            for key, default in (("on_value", channel.native_max), ("off_value", channel.safe_value)):
+                value = entry.get(key, default)
+                if not _finite_number(value) or not channel.native_min <= value <= channel.native_max:
+                    report.error(ERR_BAD_CONFIG, "Threshold output must be a finite value within the actuator range.", field=field + "." + key)
             model_index = entry.get("index", 0)
-            if not isinstance(model_index, int) or isinstance(model_index, bool) or model_index < 0:
+            if not _whole_number(model_index) or model_index < 0:
                 report.error(ERR_BAD_CONFIG, "Output index must be a whole number of 0 or more.", field=field + ".index")
 
 
@@ -582,7 +604,7 @@ def _validate_against_model(config: Dict[str, Any], model_meta: Dict[str, Any], 
         field = "outputs[%d]" % index
         if mode in (MODE_DIRECT, MODE_THRESHOLD):
             model_index = entry.get("index", 0)
-            if isinstance(model_index, int) and not isinstance(model_index, bool) and model_index >= output_size:
+            if _whole_number(model_index) and model_index >= output_size:
                 report.error(
                     ERR_ARITY_MISMATCH,
                     "This output reads model value %d, but the model only produces %d."
@@ -728,10 +750,10 @@ def config_hash(config: Dict[str, Any]) -> str:
     hashed: retuning a scale on the host must not invalidate a flashed script.
     """
     material = {
-        "schema_version": config.get("schema_version", SCHEMA_VERSION),
+        "schema_version": int(config.get("schema_version", SCHEMA_VERSION)),
         "platform": config.get("platform", ""),
-        "rate_hz": config.get("rate_hz", 0),
-        "watchdog_ms": config.get("watchdog_ms", 0),
+        "rate_hz": int(config.get("rate_hz", 0)),
+        "watchdog_ms": int(config.get("watchdog_ms", 0)),
         "inputs": [str(entry.get("channel", "")) for entry in config.get("inputs", []) or []],
         "outputs": [str(entry.get("channel", "")) for entry in config.get("outputs", []) or []],
     }

@@ -7,6 +7,8 @@ engine with no onnxruntime installed, and so the UI can read a model's arity
 
 from __future__ import annotations
 
+import hashlib
+
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -48,7 +50,12 @@ def read_model_meta(model_path: Any) -> Dict[str, Any]:
         ) from exc
 
     try:
-        model = onnx.load(str(path))
+        model_bytes = path.read_bytes()
+        model = onnx.load_model_from_string(model_bytes)
+        from onnx.external_data_helper import _get_all_tensors
+        if any(tensor.data_location == onnx.TensorProto.EXTERNAL or tensor.external_data
+               for tensor in _get_all_tensors(model)):
+            raise ValueError("Robot export requires a self-contained ONNX model; external tensor data is unsupported.")
     except Exception as exc:
         raise RobotError("Could not read the trained model: %s" % exc, code=ERR_MODEL_UNREADABLE) from exc
 
@@ -75,6 +82,7 @@ def read_model_meta(model_path: Any) -> Dict[str, Any]:
         "output_shape": output_shape,
         "output_size": _flat_size(output_shape),
         "path": str(path),
+        "model_sha256": hashlib.sha256(model_bytes).hexdigest(),
     }
 
 

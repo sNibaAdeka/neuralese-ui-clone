@@ -9,11 +9,15 @@ wiring is identical to the existing ONNX and executable exports.
 from __future__ import annotations
 
 import json
+import hashlib
+import os
+import tempfile
 import shutil
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .errors import ERR_EXPORT_FAILED, RobotError
 from .config import config_hash, validate_config
 from .generate import generate_script_for_plan
 from .platforms import get_platform
@@ -36,7 +40,8 @@ _DEPLOY_STEPS_EN = {
         "Copy neuralese_robot.py onto the brick (through the ev3dev file browser,",
         "  or with: scp neuralese_robot.py robot@ev3dev.local:~/).",
         "Start the program on the brick. It will say it is waiting.",
-        "Come back to Neuralese and press Connect.",
+        "This GUI currently exports files only; live robot connection is not available.",
+        "Deploying the script alone does not run the model: a compatible host bridge is required.",
     ],
     "deploy_spike": [
         "Install the Pybricks firmware on the hub once, from pybricks.com/install.",
@@ -59,7 +64,8 @@ _DEPLOY_STEPS_RU = {
         "Скопируйте neuralese_robot.py на блок (через файловый браузер ev3dev",
         "  или командой: scp neuralese_robot.py robot@ev3dev.local:~/).",
         "Запустите программу на блоке — она напишет, что ждёт подключения.",
-        "Вернитесь в Neuralese и нажмите «Подключить».",
+        "Сейчас интерфейс только экспортирует файлы; подключение робота ещё недоступно.",
+        "Для запуска модели нужен совместимый мост на компьютере; одного скрипта недостаточно.",
     ],
     "deploy_spike": [
         "Один раз установите прошивку Pybricks на хаб: pybricks.com/install.",
@@ -136,35 +142,73 @@ def write_bundle(
     lang: str = "en",
     as_zip: bool = False,
     warnings: Optional[List[Dict[str, Any]]] = None,
+    expected_model_sha256: str = "",
 ) -> Dict[str, Any]:
     """Write the export folder (or zip) and describe what was written."""
     model_path = Path(model_path)
     output_path = Path(output_path)
     platform = get_platform(plan.config["platform"])
 
-    folder = output_path.with_suffix("") if as_zip else output_path
-    if folder.exists() and folder.is_dir():
-        # Re-exporting into the same folder is the normal case: the child
-        # retrains and exports again. Clear it so a stale model or a script for
-        # a different mapping cannot survive alongside the new one.
-        shutil.rmtree(folder)
-    folder.mkdir(parents=True, exist_ok=True)
-
+    # Never use a same-stem folder as zip scratch space, or delete a chosen
+    # destination. Build everything privately before publishing the completed bundle.
+    target = (output_path if output_path.suffix == ".zip" else output_path.with_suffix(".zip")) if as_zip else output_path
+    if target.exists() or target.is_symlink():
+        raise RobotError(
+            "The export destination already exists. Choose a new folder or zip filename.",
+            code=ERR_EXPORT_FAILED, field="output_path",
+        )
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".neuralese-export-", dir=str(target.parent)) as temporary:
+        folder = Path(temporary) / "bundle"
+        folder.mkdir()
+        script_path = folder / platform.script_filename
+        script_path.write_text(generate_script_for_plan(plan), encoding="utf-8")
+        bundled_model = folder / MODEL_FILENAME
+        shutil.copy2(str(model_path), str(bundled_model))
+        if expected_model_sha256 and hashlib.sha256(bundled_model.read_bytes()).hexdigest() != expected_model_sha256:
+            raise RobotError("The trained model changed during export. Validate the mapping again.", code=ERR_EXPORT_FAILED, field="model_path")
+        config_payload = dict(plan.config)
+        config_payload["config_hash"] = config_hash(plan.config)
+        (folder / CONFIG_FILENAME).write_text(
+            json.dumps(config_payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        (folder / README_FILENAME).write_text(build_readme(plan, lang=lang), encoding="utf-8")
+        files = sorted(item.name for item in folder.iterdir())
+        if as_zip:
+            staged_zip = Path(temporary) / "bundle.zip"
+            with zipfile.ZipFile(str(staged_zip), "w", zipfile.ZIP_DEFLATED) as archive:
+                for item in sorted(folder.iterdir()):
+                    archive.write(str(item), arcname=item.name)
+            # Hard link publishes atomically and refuses a destination created
+            # after our check, unlike replace(), which would overwrite it.
+            os.link(staged_zip, target)
+        else:
+            # Reserving the directory first prevents rename overwriting a folder
+            # that another export/user created while we were staging.
+            target.mkdir()
+            published = []
+            try:
+                for item in folder.iterdir():
+                    destination = target / item.name
+                    os.link(item, destination)
+                    published.append((destination, destination.stat().st_ino))
+            except BaseException:
+                # Remove only our own links, preserving files another actor may
+                # have added or replaced while publication was in progress.
+                for destination, inode in published:
+                    try:
+                        if destination.lstat().st_ino == inode:
+                            destination.unlink()
+                    except FileNotFoundError:
+                        pass
+                try:
+                    target.rmdir()
+                except OSError:
+                    pass
+                raise
+    folder = target
     script_path = folder / platform.script_filename
-    script_path.write_text(generate_script_for_plan(plan), encoding="utf-8")
-
     bundled_model = folder / MODEL_FILENAME
-    shutil.copy2(str(model_path), str(bundled_model))
-
-    config_payload = dict(plan.config)
-    config_payload["config_hash"] = config_hash(plan.config)
-    (folder / CONFIG_FILENAME).write_text(
-        json.dumps(config_payload, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
-
-    (folder / README_FILENAME).write_text(build_readme(plan, lang=lang), encoding="utf-8")
-
-    files = sorted(item.name for item in folder.iterdir())
 
     result: Dict[str, Any] = {
         "status": "ok",
@@ -181,12 +225,6 @@ def write_bundle(
     }
 
     if as_zip:
-        zip_path = output_path if str(output_path).endswith(".zip") else output_path.with_suffix(".zip")
-        with zipfile.ZipFile(str(zip_path), "w", zipfile.ZIP_DEFLATED) as archive:
-            for item in sorted(folder.iterdir()):
-                archive.write(str(item), arcname=item.name)
-        shutil.rmtree(folder)
-        result["output_path"] = str(zip_path)
         result["zipped"] = True
 
     return result

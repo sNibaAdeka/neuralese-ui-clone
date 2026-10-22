@@ -998,7 +998,7 @@ func _make_local_training_job_dir() -> String:
 func _write_json(path: String, data: Dictionary) -> bool:
 	return _write_json_atomic(path, data)
 
-func _write_json_atomic(path: String, data: Dictionary) -> bool:
+func _write_json_atomic(path: String, data: Dictionary, full_precision: bool = false) -> bool:
 	var parent := path.get_base_dir()
 	if parent != "" and DirAccess.make_dir_recursive_absolute(parent) != OK:
 		push_warning("Could not create local runtime directory: " + parent)
@@ -1011,7 +1011,7 @@ func _write_json_atomic(path: String, data: Dictionary) -> bool:
 	for attempt in range(3):
 		var f = FileAccess.open(tmp_path, FileAccess.WRITE)
 		if f:
-			f.store_string(JSON.stringify(data, "\t"))
+			f.store_string(JSON.stringify(data, "\t", true, full_precision))
 			f.flush()
 			f.close()
 			wrote_temp = true
@@ -2327,7 +2327,7 @@ func _robot_request(payload: Dictionary) -> Dictionary:
 	DirAccess.make_dir_recursive_absolute(job_dir)
 	var request_path := job_dir.path_join("request.json")
 	var response_path := job_dir.path_join("response.json")
-	if not _write_json(request_path, payload):
+	if not _write_json_atomic(request_path, payload, true):
 		return _robot_error("Could not write the robot export request.", "io_failed")
 
 	var python_path := await _local_python_path()
@@ -2400,7 +2400,7 @@ func robot_list_devices(platform: String) -> Dictionary:
 
 ## Writes the export folder: the trained model, the generated device program,
 ## the mapping, and instructions. Pass an empty config to have one derived.
-func export_robot_bundle(input, platform: String, output_path: String, config: Dictionary = {}, lang: String = "", train_signature: Dictionary = {}) -> Dictionary:
+func export_robot_bundle(input, platform: String, output_path: String, config: Dictionary = {}, lang: String = "", train_signature: Dictionary = {}, expected_model_sha256: String = "") -> Dictionary:
 	if not is_robot_platform(platform):
 		return _robot_error("Unknown robot platform: " + platform, "unknown_platform")
 	if not is_instance_valid(input):
@@ -2415,10 +2415,11 @@ func export_robot_bundle(input, platform: String, output_path: String, config: D
 		"model_path": model_path,
 		"output_path": output_path,
 		"lang": lang if lang != "" else glob.get_lang(),
-		"train_signature": train_signature,
+		"train_signature": train_signature.duplicate(true),
+		"expected_model_sha256": expected_model_sha256,
 	}
 	if not config.is_empty():
-		payload["config"] = config
+		payload["config"] = config.duplicate(true)
 	return await _robot_request(payload)
 
 

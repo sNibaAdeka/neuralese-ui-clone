@@ -64,6 +64,17 @@ def _apply_actuators_body(plan: MappingPlan) -> str:
     return "\n".join(lines)
 
 
+def _safe_actuators_body(plan: MappingPlan) -> str:
+    # One failing hardware write must not prevent stopping the remaining motors.
+    lines = ["    failure = None"]
+    for channel in plan.output_channels:
+        statement = channel.expr.format(value=repr(int(channel.safe_value)))
+        lines.extend(["    try:", "        " + statement,
+                      "    except Exception as exc:", "        failure = exc"])
+    lines.extend(["    if failure is not None:", "        raise failure"])
+    return "\n".join(lines)
+
+
 def _imports(plan: MappingPlan) -> str:
     collected: List[str] = []
     for channel in list(plan.input_channels) + list(plan.output_channels):
@@ -100,6 +111,7 @@ def _substitutions(plan: MappingPlan, cfg_hash: str) -> Dict[str, str]:
         "SETUP": _setup(plan),
         "READ_SENSORS": _read_sensors_body(plan),
         "APPLY_ACTUATORS": _apply_actuators_body(plan),
+        "SAFE_ACTUATORS": _safe_actuators_body(plan),
     }
 
 

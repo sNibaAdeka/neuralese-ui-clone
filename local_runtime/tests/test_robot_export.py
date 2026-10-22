@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from support import RUNTIME_ROOT  # noqa: F401  (puts the runtime on sys.path)
@@ -93,7 +94,9 @@ class RegistryActionTests(unittest.TestCase):
     def test_list_devices_never_crashes_on_a_missing_optional_dependency(self) -> None:
         # This runs on the "connect your robot" screen; an uninstalled pyserial
         # has to read as an unavailable transport, not as a crash.
-        result = export_robot.handle_request({"action": "list_devices", "platform": "microbit"})
+        from neuralese_local.robot.errors import MissingDependencyError
+        with patch("neuralese_local.robot.transport.SerialTransport._pyserial", side_effect=MissingDependencyError("not installed")):
+            result = export_robot.handle_request({"action": "list_devices", "platform": "microbit"})
         self.assertEqual(result["status"], "ok")
         self.assertIn("serial", result["devices"]["transports"])
 
@@ -140,14 +143,79 @@ class BundleTests(unittest.TestCase):
         script = Path(result["script_path"]).read_text(encoding="utf-8")
         self.assertIn('CFG_HASH = "%s"' % result["config_hash"], script)
 
-    def test_re_exporting_does_not_leave_the_old_files_behind(self) -> None:
-        # Otherwise a stale script for a different mapping sits next to the new
-        # one and the child copies the wrong file across.
+    def test_existing_folder_is_refused_and_preserved(self) -> None:
+        from neuralese_local.robot.errors import RobotError
         target = self.root / "MyRobot"
-        write_bundle(self.plan, self.model, target)
-        (target / "old_script.py").write_text("stale", encoding="utf-8")
-        result = write_bundle(self.plan, self.model, target)
-        self.assertNotIn("old_script.py", result["files"])
+        target.mkdir()
+        (target / "notes.txt").write_text("keep")
+        with self.assertRaises(RobotError):
+            write_bundle(self.plan, self.model, target)
+        self.assertEqual((target / "notes.txt").read_text(), "keep")
+
+    def test_failed_copy_leaves_no_partial_export(self) -> None:
+        target = self.root / "MyRobot"
+        with patch("neuralese_local.robot.bundle.shutil.copy2", side_effect=OSError("disk failure")):
+            with self.assertRaises(OSError):
+                write_bundle(self.plan, self.model, target)
+        self.assertFalse(target.exists())
+        self.assertFalse(list(self.root.glob(".neuralese-export-*")))
+
+    def test_zip_does_not_touch_existing_same_stem_folder(self) -> None:
+        target = self.root / "MyRobot"
+        target.mkdir()
+        (target / "notes.txt").write_text("keep")
+        write_bundle(self.plan, self.model, target.with_suffix(".zip"), as_zip=True)
+        self.assertEqual((target / "notes.txt").read_text(), "keep")
+
+    def test_existing_zip_is_preserved(self) -> None:
+        from neuralese_local.robot.errors import RobotError
+        target = self.root / "MyRobot.zip"
+        target.write_bytes(b"keep")
+        with self.assertRaises(RobotError):
+            write_bundle(self.plan, self.model, target, as_zip=True)
+        self.assertEqual(target.read_bytes(), b"keep")
+
+    def test_changed_model_is_refused_before_publication(self) -> None:
+        from neuralese_local.robot.errors import RobotError
+        with self.assertRaises(RobotError):
+            write_bundle(self.plan, self.model, self.root / "MyRobot", expected_model_sha256="outdated")
+        self.assertFalse((self.root / "MyRobot").exists())
+
+    def test_failed_archive_leaves_no_partial_zip(self) -> None:
+        target = self.root / "MyRobot.zip"
+        with patch("neuralese_local.robot.bundle.zipfile.ZipFile.write", side_effect=OSError("disk failure")):
+            with self.assertRaises(OSError):
+                write_bundle(self.plan, self.model, target, as_zip=True)
+        self.assertFalse(target.exists())
+        self.assertFalse(list(self.root.glob(".neuralese-export-*")))
+
+    def test_failed_publication_preserves_concurrently_added_file(self) -> None:
+        import os
+        target = self.root / "MyRobot"
+        real_link = os.link
+        calls = []
+        def interrupted_link(source, destination):
+            calls.append(destination)
+            if len(calls) == 2:
+                (target / "notes.txt").write_text("keep")
+                raise OSError("disk failure")
+            return real_link(source, destination)
+        with patch("neuralese_local.robot.bundle.os.link", side_effect=interrupted_link):
+            with self.assertRaises(OSError):
+                write_bundle(self.plan, self.model, target)
+        self.assertEqual([item.name for item in target.iterdir()], ["notes.txt"])
+        self.assertEqual((target / "notes.txt").read_text(), "keep")
+
+    def test_symlink_destination_does_not_change_its_target(self) -> None:
+        from neuralese_local.robot.errors import RobotError
+        existing = self.root / "existing"
+        existing.mkdir()
+        (existing / "notes.txt").write_text("keep")
+        target = self.root / "MyRobot"
+        target.symlink_to(existing, target_is_directory=True)
+        with self.assertRaises(RobotError):
+            write_bundle(self.plan, self.model, target)
+        self.assertEqual((existing / "notes.txt").read_text(), "keep")
 
     def test_the_readme_tells_the_child_what_to_do(self) -> None:
         result = write_bundle(self.plan, self.model, self.root / "MyRobot")
@@ -160,7 +228,7 @@ class BundleTests(unittest.TestCase):
     def test_the_readme_is_available_in_russian(self) -> None:
         result = write_bundle(self.plan, self.model, self.root / "MyRobot", lang="ru")
         readme = (Path(result["output_path"]) / README_FILENAME).read_text(encoding="utf-8")
-        self.assertIn("Подключить", readme)
+        self.assertIn("подключение робота ещё недоступно", readme)
 
     def test_a_zipped_bundle_contains_the_same_files(self) -> None:
         import zipfile
@@ -172,6 +240,56 @@ class BundleTests(unittest.TestCase):
                 sorted(archive.namelist()),
                 sorted([README_FILENAME, CONFIG_FILENAME, MODEL_FILENAME, "neuralese_robot.py"]),
             )
+
+
+class ModelFingerprintTests(unittest.TestCase):
+    def setUp(self):
+        try:
+            import onnx
+        except ImportError:
+            self.skipTest("onnx is not installed")
+        self.onnx = onnx
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = Path(self.tmp.name) / "trained.onnx"
+        self.write_model(1.0)
+
+    def write_model(self, weight):
+        onnx = self.onnx
+        helper = onnx.helper
+        model = helper.make_model(helper.make_graph(
+            [helper.make_node("Mul", ["x", "w"], ["y"])], "fingerprint",
+            [helper.make_tensor_value_info("x", onnx.TensorProto.FLOAT, [1, 1])],
+            [helper.make_tensor_value_info("y", onnx.TensorProto.FLOAT, [1, 1])],
+            [helper.make_tensor("w", onnx.TensorProto.FLOAT, [1], [weight])],
+        ))
+        onnx.save(model, self.path)
+
+    def test_equal_shape_retraining_changes_fingerprint_and_refuses_export(self):
+        from neuralese_local.robot.model_meta import read_model_meta
+        from neuralese_local.robot.errors import RobotError
+        original = read_model_meta(self.path)
+        self.write_model(2.0)
+        retrained = read_model_meta(self.path)
+        self.assertEqual(original["input_size"], retrained["input_size"])
+        self.assertNotEqual(original["model_sha256"], retrained["model_sha256"])
+        target = self.path.parent / "export"
+        with self.assertRaises(RobotError):
+            export_robot.handle_request({"action": "export", "model_path": str(self.path), "output_path": str(target), "expected_model_sha256": original["model_sha256"], "config": ev3_config()})
+        self.assertFalse(target.exists())
+
+    def test_external_tensor_data_is_rejected_without_reading_external_files(self):
+        from neuralese_local.robot.model_meta import read_model_meta
+        from neuralese_local.robot.errors import RobotError
+        model = self.onnx.load(self.path)
+        tensor = model.graph.initializer[0]
+        tensor.data_location = self.onnx.TensorProto.EXTERNAL
+        field = tensor.external_data.add()
+        field.key = "location"
+        field.value = "missing-secret-file"
+        self.path.write_bytes(model.SerializeToString())
+        with self.assertRaisesRegex(RobotError, "self-contained"):
+            read_model_meta(self.path)
 
 
 class ProcessContractTests(unittest.TestCase):

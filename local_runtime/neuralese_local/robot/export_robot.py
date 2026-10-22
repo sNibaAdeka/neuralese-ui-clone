@@ -122,6 +122,10 @@ def action_export(request: Dict[str, Any]) -> Dict[str, Any]:
     output_path = Path(str(request["output_path"]))
     meta = read_model_meta(model_path)
 
+    expected_hash = request.get("expected_model_sha256", "")
+    if expected_hash and expected_hash != meta["model_sha256"]:
+        raise RobotError("The trained model changed. Validate the mapping again before exporting.", code=ERR_BAD_CONFIG, field="model_path")
+
     warnings: List[Dict[str, Any]] = []
     config = request.get("config")
     if not config:
@@ -146,6 +150,7 @@ def action_export(request: Dict[str, Any]) -> Dict[str, Any]:
         lang=str(request.get("lang", "en")),
         as_zip=bool(request.get("zip", False)),
         warnings=warnings,
+        expected_model_sha256=meta["model_sha256"],
     )
     result["model"] = meta
     return result

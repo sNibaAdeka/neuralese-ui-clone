@@ -8,6 +8,7 @@ if [[ ! -f ".godot/global_script_class_cache.cfg" ]]; then
 fi
 
 TESTS=(
+  "test_robot_export_dialog.gd:PASS test_robot_export_dialog"
   "test_ai_help_template_lifecycle.gd:PASS test_ai_help_template_lifecycle"
   "test_grid_tile_pool_lifecycle.gd:PASS test_grid_tile_pool_lifecycle"
   "test_builtin_copy_initial_layout.tscn:PASS test_builtin_copy_initial_layout"
@@ -148,14 +149,14 @@ for entry in "${TESTS[@]}"; do
     continue
   fi
   quit_after=300
-  if [[ "$file" == "test_builtin_copy_initial_layout.tscn" ]]; then
+  if [[ "$file" == "test_robot_export_dialog.gd" || "$file" == "test_builtin_copy_initial_layout.tscn" ]]; then
     quit_after=2400
   fi
   if [[ "$file" == "test_audit_training_start_result.tscn" ]]; then
     quit_after=1200
   fi
   export NEURALESE_ISOLATED_TEST="$default_isolated_test"
-  if [[ "$file" == "test_builtin_copy_initial_layout.tscn" || "$file" == "test_duplicate_node_history.gd" || "$file" == "test_json_dataset_integrity.gd" || "$file" == "test_training_worker_bootstrap_shutdown.gd" || "$file" == "test_audit_connection_text_lifecycle.gd" || "$file" == "test_audit_training_start_result.tscn" || "$file" == "test_data_workspace_browsing.tscn" || "$file" == "test_csv_import_integrity.gd" || "$file" == "test_export_result_failures.gd" || "$file" == "test_node_visual_family.gd" ]]; then
+  if [[ "$file" == "test_robot_export_dialog.gd" || "$file" == "test_builtin_copy_initial_layout.tscn" || "$file" == "test_duplicate_node_history.gd" || "$file" == "test_json_dataset_integrity.gd" || "$file" == "test_training_worker_bootstrap_shutdown.gd" || "$file" == "test_audit_connection_text_lifecycle.gd" || "$file" == "test_audit_training_start_result.tscn" || "$file" == "test_data_workspace_browsing.tscn" || "$file" == "test_csv_import_integrity.gd" || "$file" == "test_export_result_failures.gd" || "$file" == "test_node_visual_family.gd" ]]; then
     export NEURALESE_ISOLATED_TEST=1
   fi
   if [[ "$file" == "test_claude_axon_panel.gd" || "$file" == "test_dense_reference_presentation.gd" || "$file" == "test_reference_training_cards.gd" ]]; then
