@@ -35,6 +35,15 @@ var _scan_thread: Thread = null
 var _loading_overlay: Label
 var _tile_index: Dictionary = {}
 
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	# Recycled tiles are detached Nodes, so tree destruction cannot free them.
+	for tile in _tile_pool:
+		if is_instance_valid(tile) and tile.get_parent() == null:
+			tile.free()
+	_tile_pool.clear()
+
 func _ready() -> void:
 	#current_dir = OS.get_system_dir(OS.SYSTEM_DIR_DOWNLOADS)
 	_prepare_caches()

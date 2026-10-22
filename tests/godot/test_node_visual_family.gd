@@ -111,6 +111,18 @@ func _test_ready_dataset_selector() -> void:
 	_expect(dataset.is_blocked and dataset.modulate == Color(0.7, 0.7, 0.7, 1), "dataset selector retains blocked parent cue")
 	dataset.unblock()
 	_expect(style.bg_color == Design.DATASET_SOFT and dataset.modulate == Color.WHITE, "dataset selector returns to data family after unblock")
+	var classifier = root.get_node("graphs").get_graph(&"classifier")
+	var activation = root.get_node("graphs").get_graph(&"neuron")
+	for frame in 3:
+		await process_frame
+	var title: LineEdit = classifier.get_node("ColorRect/root/Label")
+	_expect(title.get_theme_color("font_color") == Design.INK and title.get_theme_color("font_placeholder_color") == Design.INK, "classifier heading has readable ink for saved and empty titles")
+	_expect(title.editable and title.has_meta("reference_preserve_style"), "heading styling retains native editing")
+	for color_role in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		_expect(classifier.get_node("EditLabels").get_theme_color(color_role) == Design.OUTPUT_INK, "classifier action preserves readable output ink: %s" % color_role)
+	_expect(classifier.get_node("EditLabels").get_theme_color("font_disabled_color") == Design.INK_MUTED, "classifier disabled action stays distinct")
+	activation.update_config({"activ": &"relu"})
+	_expect(activation.dropout.label.get_theme_color("font_color") == Design.ACTIVATION_INK and activation.dropout.text == "ReLU", "active activation selector retains readable family ink and actual selected function")
 	await _test_palette_states()
 	app.undo_redo.clear_history()
 	project.queue_free()

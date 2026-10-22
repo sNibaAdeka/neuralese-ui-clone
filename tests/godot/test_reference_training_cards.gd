@@ -65,6 +65,26 @@ func _run() -> void:
 	_expect(begin.train.released.is_connected(begin._on_train_released), "Real start/stop callback retained")
 	_expect(begin.clearbut.released.is_connected(begin._on_train_2_released), "Real reset callback retained")
 
+	var options: Button = step.get_node("TrainingOptions")
+	_expect(options.text == "Настройки" and options.size.y >= 44 and options.focus_mode == Control.FOCUS_ALL, "Training settings have a clear keyboard-accessible target")
+	for path in ["optimizer", "lr", "DecreaseRate", "IncreaseRate", "labels/Label", "labels/Label3", "labels/Label4", "switch", "sgd_tab"]:
+		_expect(not step.get_node(path).is_visible_in_tree(), "Advanced field starts collapsed: " + path)
+	_expect(step.get_node("ColorRect2").visible, "Real accuracy/status chart stays visible with settings collapsed")
+	var port_before: Vector2 = step.get_node("i").position
+	var chart_before: Vector2 = step.get_node("ColorRect2").position
+	options.pressed.emit()
+	await create_timer(0.6).timeout
+	_expect(step._advanced_open and step.rect.size.y > 276, "Settings expand through the existing card size mechanism")
+	for path in ["optimizer", "lr", "DecreaseRate", "IncreaseRate", "labels/Label", "labels/Label3", "labels/Label4", "switch"]:
+		_expect(step.get_node(path).is_visible_in_tree(), "Original setting remains accessible after disclosure: " + path)
+	_expect(step.get_node("i").position == port_before, "Disclosure preserves training input port position")
+	_expect(options.get_global_rect().end.y <= step.get_node("optimizer").get_global_rect().position.y, "Disclosure target does not overlap optimizer")
+	_expect(step.get_node("ColorRect2").get_global_rect().end.y <= step.get_node("labels/Label4").get_global_rect().position.y, "Expanded metrics do not overlap weight decay")
+	var design = load("res://scripts/claude_design_theme.gd")
+	var option_style: StyleBoxFlat = options.get_theme_stylebox("normal")
+	var focus_style: StyleBoxFlat = options.get_theme_stylebox("focus")
+	_expect(option_style.corner_radius_top_left == design.CONTROL_RADIUS and focus_style.border_width_left >= 2, "Training control uses shared radius and a visible keyboard focus outline")
+	_expect(options.get_theme_color("font_color") == design.TRAINING_INK, "Training controls use dark family ink")
 	step.update_config({"optimizer": "adam", "lr": 1})
 	app.undo_redo.clear_history()
 	step.get_node("DecreaseRate").pressed.emit()
@@ -72,8 +92,6 @@ func _run() -> void:
 	app.undo_redo.undo()
 	await _frames(2)
 	_expect(step.cfg.lr == 1, "Rate action can be undone")
-	step.get_node("TrainingOptions").pressed.emit()
-	await create_timer(0.6).timeout
 	_expect(step.get_node("switch").visible, "Weight decay remains accessible")
 	step._on_switch_released()
 	_expect(step.cfg.weight_decay, "Weight decay still changes actual config")
@@ -85,6 +103,38 @@ func _run() -> void:
 	step.get_node("TrainingOptions").pressed.emit()
 	await create_timer(0.6).timeout
 	_expect(absf(step.rect.size.y - 184) < 1, "Advanced settings collapse to reference card size")
+	_expect(step.get_node("ColorRect2").position == chart_before and step.get_node("ColorRect2").visible, "Collapsing restores metrics to their original position")
+	for path in ["optimizer", "lr", "DecreaseRate", "IncreaseRate", "labels/Label", "labels/Label3", "labels/Label4", "switch"]:
+		_expect(not step.get_node(path).is_visible_in_tree(), "Closing hides the full settings group: " + path)
+	_expect(step.cfg.weight_decay and is_equal_approx(float(step.cfg.momentum), 0.45), "Closing settings retains real configuration values")
+	# Exercise native dropdown activation, reparenting and closure for both menus.
+	for selector in [step.optimizer, step.lr]:
+		options.pressed.emit()
+		await _frames(2)
+		var original_parent: Node = selector.get_parent()
+		var original_position: Vector2 = selector.position
+		var old_boundary: Vector2 = app.space_begin
+		# Headless pointer coordinates are zero; allow native dropdown activation.
+		app.space_begin.y = -1000
+		app.mouse_just_pressed = true
+		app.mouse_pressed = true
+		selector.press()
+		selector._process_dropout_menu(0.016)
+		app.mouse_just_pressed = false
+		app.mouse_pressed = false
+		app.space_begin = old_boundary
+		_expect(selector.get_parent() == app.follow_menus and app.opened_menu == selector, "Real dropdown opens in follow_menus: " + selector.name)
+		options.pressed.emit()
+		_expect(app.opened_menu != selector, "Collapse clears the active dropdown: " + selector.name)
+		await create_timer(0.6).timeout
+		_expect(selector.get_parent() == original_parent and selector.position.is_equal_approx(original_position), "Closed dropdown returns to its original parent and position: " + selector.name)
+		_expect(not selector.visible and not selector.state.tween_hide and selector.current_type == selector.ButtonType.BLOCK_BUTTON, "Collapsed settings leave no orphan dropdown: " + selector.name)
+		_expect(not app.is_occupator(selector, &"menu") and not app.is_occupator(selector, &"menu_inside"), "Closing dropdown releases menu occupancy: " + selector.name)
+		options.pressed.emit()
+		await _frames(2)
+		_expect(selector.is_visible_in_tree() and selector.get_parent() == original_parent, "Reopening settings restores the selector without a detached menu: " + selector.name)
+		options.pressed.emit()
+		await _frames(2)
 	step.clear()
 	await _frames(2)
 	_expect(step.get_node("ColorRect2/acc").text == "—", "Empty chart does not claim 100 percent accuracy")

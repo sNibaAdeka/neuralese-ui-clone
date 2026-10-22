@@ -7,6 +7,7 @@ const MarkdownCore := preload("res://scripts/markdown_to_bbcode.gd")
 const PRIMARY_COLOR := Color(0.43137255, 0.5882353, 0.9019608, 1.0)
 const SECONDARY_COLOR := Color(0.43137255, 0.5882353, 0.9019608, 0.0)
 const SPLASH_MATERIAL := preload("res://scenes/splash.tres")
+const PALETTE_VISIBILITY_META := &"dialog_palette_hidden"
 
 signal action_selected(result: Dictionary)
 
@@ -35,7 +36,6 @@ var _result_emitted := false
 var _last_result: Dictionary = {}
 var _language := "en"
 var _hidden_node_palette: CanvasLayer = null
-var _node_palette_was_visible := false
 var _choice_menu_layer: CanvasLayer = null
 var _default_choice_menu_host: Node = null
 var _choice_menu_host_captured := false
@@ -62,6 +62,11 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	# Direct destruction and workspace teardown can bypass go_away(). Release
+	# lookup entries now, before callers resume from tree_exited this frame.
+	if is_instance_valid(ui):
+		ui.rem_splashed(self)
+		ui.splashed_in.erase(self)
 	_restore_choice_menu_host()
 	_dispose_choice_menu_layer()
 	_restore_node_palette()
@@ -274,9 +279,6 @@ func quit(_data: Dictionary = {}) -> void:
 	hide()
 	if can_tween_zero:
 		ui.blur.self_modulate.a = 0.0
-	var palette := glob.base_node.get_node_or_null("WIN_GRAPH/NodePalette") as CanvasLayer
-
-	#palette.visible = true
 	queue_free()
 
 
@@ -599,22 +601,44 @@ func _current_field_values() -> Dictionary:
 
 
 func _apply_workspace_visibility() -> void:
-	#_restore_node_palette()
 	if not bool(_normalized_spec.get("appearance", {}).get("hide_node_palette", false)):
+		_restore_node_palette()
 		return
 	if not is_instance_valid(glob.base_node):
+		_restore_node_palette()
 		return
 	var palette := glob.base_node.get_node_or_null("WIN_GRAPH/NodePalette") as CanvasLayer
 	if not is_instance_valid(palette):
+		_restore_node_palette()
 		return
-	#palette.visible = false
-	#_hidden_node_palette = palette
-	#_node_palette_was_visible = palette.visible
-	#palette.visible = false
+	if _hidden_node_palette != palette:
+		_restore_node_palette()
+	# Palette-owned state preserves the first snapshot even when dialogs overlap
+	# or close out of order. IDs avoid retaining dialogs through node metadata.
+	var state: Dictionary = palette.get_meta(PALETTE_VISIBILITY_META, {})
+	var owners: Dictionary = state.get("owners", {})
+	if owners.is_empty():
+		state = {"was_visible": palette.visible, "owners": owners}
+	owners[get_instance_id()] = true
+	palette.set_meta(PALETTE_VISIBILITY_META, state)
+	_hidden_node_palette = palette
+	palette.visible = false
 
 
 func _restore_node_palette() -> void:
-	if is_instance_valid(_hidden_node_palette):
-		_hidden_node_palette.visible = _node_palette_was_visible
+	var palette := _hidden_node_palette
 	_hidden_node_palette = null
-	_node_palette_was_visible = false
+	if not is_instance_valid(palette):
+		return
+	var state: Dictionary = palette.get_meta(PALETTE_VISIBILITY_META, {})
+	var owners: Dictionary = state.get("owners", {})
+	owners.erase(get_instance_id())
+	if not owners.is_empty():
+		palette.visible = false
+		return
+	palette.remove_meta(PALETTE_VISIBILITY_META)
+	# CanvasLayer visibility does not follow a hidden graph CanvasItem. A tab
+	# change during closure must not bring its palette into the next workspace.
+	var graph_window := palette.get_parent() as CanvasItem
+	var graph_visible := not is_instance_valid(graph_window) or graph_window.is_visible_in_tree()
+	palette.visible = bool(state.get("was_visible", false)) and graph_visible

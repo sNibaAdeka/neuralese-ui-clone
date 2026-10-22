@@ -1831,6 +1831,7 @@ func copy():
 	a.position = position + rect.size / 2
 	await get_tree().process_frame
 	a.update_config(cfg.duplicate(true))
+	a.refresh_create_action_snapshot()
 
 func define_graph():
 	glob.menus["edit_graph"].menu_call = func():

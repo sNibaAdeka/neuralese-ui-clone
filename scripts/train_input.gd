@@ -7,6 +7,10 @@ var _rate_minus: Button
 var _rate_plus: Button
 var _empty_chart: Label
 var _has_samples := false
+var _settings_panel: Panel
+const SETTINGS_ROW_HEIGHT := 44.0
+const CLOSED_HEIGHT := 184.0
+const OPEN_HEIGHT := 276.0 + SETTINGS_ROW_HEIGHT
 
 @export var fade_speed: float = 10.0
 @export var size_lerp_speed: float = 12.0
@@ -35,7 +39,7 @@ func _after_ready():
 	select_optimizer(current_optimizer)
 	set_weight_dec(false)
 	is_training = true
-	_target_size_y = 184.0
+	_target_size_y = CLOSED_HEIGHT
 
 var last_acc: float = 0.0
 func _after_process(delta: float):
@@ -76,12 +80,12 @@ func _proceed_hold() -> bool:
 	return training
 
 func _can_drag() -> bool:
-	return not switch.is_mouse_inside() \
+	return (not switch.is_visible_in_tree() or not switch.is_mouse_inside()) \
 		and not ui.is_focus($sgd_tab/Label4/HSlider) and not _reference_control_hovered()
 
 @onready var optimizer = $optimizer
 func _opt_selected(opt: StringName):
-	_target_size_y = 276.0 if _advanced_open else 184.0
+	_target_size_y = OPEN_HEIGHT if _advanced_open else CLOSED_HEIGHT
 
 	current_optimizer = opt
 	optimizer.text = optimizer.button_by_hint[opt].text
@@ -224,15 +228,22 @@ func _on_h_slider_value_changed(value: float) -> void:
 func _setup_reference_card() -> void:
 	Card.title_font($ColorRect/root/Label)
 	move_child($ColorRect, 0)
-	var settings := Card.panel(self, "TrainingSettings", Rect2(-78, -64, 156, 90))
-	move_child(settings, 1)
-	_rate_minus = Card.button(self, "DecreaseRate", Rect2(-70, -2, 23, 24), "−", _change_rate.bind(1))
-	_rate_plus = Card.button(self, "IncreaseRate", Rect2(48, -2, 23, 24), "+", _change_rate.bind(-1))
+	_settings_panel = Card.panel(self, "TrainingSettings", Rect2(-78, -64 + SETTINGS_ROW_HEIGHT, 156, 90))
+	move_child(_settings_panel, 1)
+	# Reuse the existing settings controls and their original paths/configuration.
+	# The disclosure gets its own row; ports and graph origin stay in place.
+	for control in [optimizer, lr, switch, $sgd_tab, $adam_tab]:
+		control.position.y += SETTINGS_ROW_HEIGHT
+	for label in $labels.get_children():
+		if label is Control: label.position.y += SETTINGS_ROW_HEIGHT
+	_rate_minus = Card.button(self, "DecreaseRate", Rect2(-70, -2 + SETTINGS_ROW_HEIGHT, 23, 24), "−", _change_rate.bind(1))
+	_rate_plus = Card.button(self, "IncreaseRate", Rect2(48, -2 + SETTINGS_ROW_HEIGHT, 23, 24), "+", _change_rate.bind(-1))
 	_rate_minus.tooltip_text = "Меньший шаг обучения"
 	_rate_plus.tooltip_text = "Больший шаг обучения"
-	_advanced_toggle = Card.button(self, "TrainingOptions", Rect2(54, -82, 22, 22), "", _toggle_advanced)
-	_advanced_toggle.icon = Card.dots_icon()
-	_advanced_toggle.tooltip_text = "Дополнительно: уменьшение весов и моментум"
+	_advanced_toggle = Card.button(self, "TrainingOptions", Rect2(-78, -64, 156, SETTINGS_ROW_HEIGHT), "Настройки", _toggle_advanced)
+	_advanced_toggle.toggle_mode = true
+	_advanced_toggle.accessibility_name = "Настройки обучения"
+	_advanced_toggle.tooltip_text = "Настройки обучения: метод, размер шага, уменьшение весов и моментум"
 	_empty_chart = Card.label($ColorRect2, "NoMeasurements", Rect2(10, 5, 136, 23), "Нет данных", 11)
 	_empty_chart.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	$ColorRect2/acc.text = "—"
@@ -243,6 +254,7 @@ func _setup_reference_card() -> void:
 	$adam_tab.hide()
 	Card.tint_button.call_deferred(optimizer, Color("d8efff"), Card.BLUE)
 	Card.tint_button.call_deferred(lr, Color("e3f3ff"), Card.BLUE)
+	_sync_settings_visibility()
 
 
 func _change_rate(direction: int) -> void:
@@ -256,9 +268,8 @@ func _change_rate(direction: int) -> void:
 
 func _toggle_advanced() -> void:
 	_advanced_open = not _advanced_open
-	_target_size_y = 276.0 if _advanced_open else 184.0
-	$labels/Label4.visible = _advanced_open
-	switch.visible = _advanced_open
+	_target_size_y = OPEN_HEIGHT if _advanced_open else CLOSED_HEIGHT
+	_sync_settings_visibility()
 	for key in optimizers:
 		_set_fade_target(optimizers[key], 1.0 if _advanced_open and key == current_optimizer else 0.0)
 	hold_for_frame()
@@ -266,7 +277,7 @@ func _toggle_advanced() -> void:
 
 func _reference_control_hovered() -> bool:
 	for control in [_advanced_toggle, _rate_minus, _rate_plus, optimizer, lr]:
-		if is_instance_valid(control) and control.get_global_rect().has_point(get_global_mouse_position()):
+		if is_instance_valid(control) and control.is_visible_in_tree() and control.get_global_rect().has_point(get_global_mouse_position()):
 			return true
 	return false
 
@@ -283,3 +294,27 @@ func _update_reference_chart() -> void:
 		$ColorRect2/acc.text = "—"
 	_rate_minus.disabled = training or int(cfg.get("lr", 1)) >= learning_rates[current_optimizer].size() - 1
 	_rate_plus.disabled = training or int(cfg.get("lr", 1)) <= 0
+
+
+func _sync_settings_visibility() -> void:
+	var closing: Array[Control] = []
+	if not _advanced_open:
+		for selector in [optimizer, lr]:
+			if selector.current_type == BlockComponent.ButtonType.CONTEXT_MENU:
+				# Open dropdowns move to follow_menus. Their native close
+				# animation must return them before the control is hidden.
+				selector.menu_hide()
+				closing.append(selector)
+				_hide_closed_settings_dropdown(selector)
+	for control in [_settings_panel, optimizer, lr, _rate_minus, _rate_plus, $labels/Label, $labels/Label3, $labels/Label4, switch]:
+		if control not in closing:
+			control.visible = _advanced_open
+	$ColorRect2.position.y = 32.0 + (SETTINGS_ROW_HEIGHT if _advanced_open else 0.0)
+	_advanced_toggle.set_pressed_no_signal(_advanced_open)
+
+
+func _hide_closed_settings_dropdown(selector: BlockComponent) -> void:
+	while is_instance_valid(selector) and selector.state.tween_hide:
+		await get_tree().process_frame
+	if is_instance_valid(selector):
+		selector.visible = _advanced_open

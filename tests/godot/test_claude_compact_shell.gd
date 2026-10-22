@@ -15,6 +15,7 @@ func _run() -> void:
 	root.add_child(project)
 	await _settle()
 	var shell = app.fg.claude_shell
+	_expect(not shell.axon_panel.visible and shell.axon_panel.get_reserved_width() == 0, "initial workspace keeps Axon closed and releases its width")
 	var geometry = load("res://scripts/claude_workspace_geometry.gd")
 	var catalog = load("res://scripts/node_palette_catalog.gd")
 	var drop = load("res://scripts/node_palette_drop_surface.gd").new()
@@ -48,9 +49,30 @@ func _run() -> void:
 			var rect: Rect2 = control.get_global_rect()
 			_expect(rect.position.x >= 0 and rect.end.x <= width + 1, "primary control stays within viewport at %d: %s" % [width, control.text])
 		var menu: PopupMenu = shell.overflow.get_popup()
-		for id in range(8):
+		for id in [0, 1, 2, 3, 7]:
 			_expect(menu.get_item_index(id) >= 0 and not menu.is_item_separator(menu.get_item_index(id)), "secondary command ID %d survives grouping" % id)
-		_expect(menu.get_item_index(2) > 2 and menu.get_item_index(7) > 7, "secondary commands have visual groups")
+		_expect(menu.get_item_index(2) > 2 and menu.get_item_index(7) > menu.get_item_index(3), "secondary commands have visual groups")
+		for id in [4, 5, 6]:
+			_expect(menu.get_item_index(id) == -1, "visible primary command %d is not duplicated in the menu at %d" % [id, width])
+		shell.buttons.axon.pressed.emit()
+		_expect(shell.axon_panel.visible, "explicit header action opens Axon at %d" % width)
+		shell.axon_panel.question.text = "Черновик из шапки"
+		shell.buttons.axon.pressed.emit()
+		_expect(not shell.axon_panel.visible and shell.axon_panel.get_reserved_width() == 0, "explicit header action closes Axon and releases width at %d" % width)
+		# Exercise the fallback contract used whenever a layout hides an action.
+		menu.set_focused_item(menu.get_item_index(3))
+		for key in ["fit", "axon", "save"]: shell.buttons[key].hide()
+		shell._sync_overflow_menu()
+		for id in [4, 5, 6]:
+			_expect(menu.get_item_index(id) >= 0, "hidden primary command %d remains reachable at %d" % [id, width])
+		_expect(menu.get_item_id(menu.get_focused_item()) == 3, "menu rebuild preserves keyboard focus on a surviving command")
+		_expect(menu.is_item_disabled(menu.get_item_index(4)) == shell.buttons.fit.disabled, "fallback fit preserves disabled state")
+		_expect(menu.is_item_disabled(menu.get_item_index(6)) == shell.buttons.save.disabled, "fallback save preserves disabled state")
+		menu.id_pressed.emit(5)
+		_expect(shell.axon_panel.visible and shell.axon_panel.question.text == "Черновик из шапки", "menu action opens contextual help with retained draft at %d" % width)
+		menu.id_pressed.emit(5)
+		for key in ["fit", "axon", "save"]: shell.buttons[key].show()
+		shell._sync_overflow_menu()
 		for control in [shell.projects, shell.buttons.fit, shell.buttons.save, shell.buttons.axon, shell.overflow] + shell.navigation.values():
 			_expect(control.focus_mode == Control.FOCUS_ALL, "toolbar control supports keyboard focus")
 			var focus: StyleBoxFlat = control.get_theme_stylebox("focus")
@@ -115,6 +137,7 @@ func _run() -> void:
 	app.curr_window = "ds"
 	shell._sync()
 	_expect(not shell.buttons.undo.disabled and shell.buttons.redo.disabled, "dataset history drives menu state")
+	_expect(shell.overflow.get_popup().get_item_index(7) == -1 and shell.overflow.get_popup().get_item_index(4) == -1, "dataset menu omits graph layout commands")
 	shell.overflow.get_popup().id_pressed.emit(0)
 	_expect(shell.overflow.get_popup().is_item_disabled(shell.overflow.get_popup().get_item_index(0)), "dataset undo disables actual menu command")
 	_expect(document.row_count() == 0, "shell undo applies to the active dataset")

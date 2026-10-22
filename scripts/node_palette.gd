@@ -5,12 +5,13 @@ const NodePaletteCatalog = preload("res://scripts/node_palette_catalog.gd")
 const GraphCreationCatalog = preload("res://scripts/graph_creation_catalog.gd")
 const Design = preload("res://scripts/claude_design_theme.gd")
 const WorkspaceGeometry = preload("res://scripts/claude_workspace_geometry.gd")
-const DISPLAY_GROUPS: Array[StringName] = [&"input", &"layers", &"shape", &"output", &"training", &"other"]
+const VisualFamily = preload("res://scripts/node_visual_family.gd")
+const DISPLAY_GROUPS: Array[StringName] = [&"input", &"layers", &"operations", &"shape", &"output", &"training", &"other"]
 const PRIMARY_TYPES: Array[StringName] = [&"input_1d", &"input", &"dataset", &"conv2d", &"maxpool", &"layer", &"dropout", &"neuron", &"flatten", &"reshape2d", &"concat", &"softmax", &"classifier"]
-const DOCK_HEIGHT := 136.0
+const DOCK_HEIGHT := 160.0
 const DOCK_BOTTOM_MARGIN := 16.0
 const DOCK_CANVAS_GAP := 12.0
-const SEARCH_HEIGHT := 44.0
+const SEARCH_HEIGHT := 68.0
 const TUTORIAL_CARD_ANCHOR_GROUP := &"tutorial_node_palette_anchor"
 const CATEGORY_TITLES := {
 	&"inputs_outputs": {"ru": "Ввод и вывод", "en": "Inputs & outputs", "kz": "Кіріс және шығыс"},
@@ -35,9 +36,10 @@ const CATEGORY_TITLES := {
 @onready var items: HBoxContainer = $Root/Panel/Content/Scroll/Items
 @onready var scroll: ScrollContainer = $Root/Panel/Content/Scroll
 @onready var search: LineEdit = $Root/Panel/Content/Header/Controls/Search
-@onready var collapse_button: Button = $Root/Actions/Collapse
-@onready var search_button: Button = $Root/Actions/SearchToggle
-@onready var actions: VBoxContainer = $Root/Actions
+@onready var collapse_button: Button = $Root/Panel/Content/Categories/Collapse
+@onready var search_button: Button = $Root/Panel/Content/Categories/SearchToggle
+@onready var actions: HBoxContainer = $Root/Panel/Content/Categories
+@onready var category_selector: OptionButton = $Root/Panel/Content/Categories/Category
 @onready var search_header: Control = $Root/Panel/Content/Header
 @onready var reopen_button: Button = $Root/Reopen
 
@@ -53,6 +55,7 @@ var _last_workspace_right := -1.0
 var _last_viewport_height := -1.0
 var _search_open := false
 var _rendered_language := ""
+var _selected_category: StringName = &"input"
 
 
 func _enter_tree() -> void:
@@ -72,6 +75,8 @@ func _ready() -> void:
 	search.text_changed.connect(_on_search_changed)
 	collapse_button.pressed.connect(set_collapsed.bind(true))
 	search_button.pressed.connect(_toggle_search)
+	category_selector.item_selected.connect(_on_category_selected)
+	_refresh_category_selector()
 	reopen_button.pressed.connect(set_collapsed.bind(false))
 	panel.mouse_entered.connect(_occupy_palette_input.bind(panel))
 	panel.mouse_exited.connect(_release_palette_input.bind(panel))
@@ -98,6 +103,7 @@ func _ready() -> void:
 
 
 func rebuild(...args) -> void:
+	_refresh_category_selector()
 	if is_instance_valid(reopen_button):
 		reopen_button.text = "+ Узлы" if glob.get_lang() == "ru" else ("+ Түйіндер" if glob.get_lang() == "kz" else "+ Nodes")
 		search_button.tooltip_text = "Все узлы и поиск" if glob.get_lang() == "ru" else "All nodes and search"
@@ -133,7 +139,7 @@ func _render_entries(previous_scroll: int = -1) -> void:
 	_rendered_language = glob.get_lang()
 	var filtered := NodePaletteCatalog.filter_entries(_entries + _unavailable_entries, search.text)
 	if not _search_open and search.text.strip_edges().is_empty():
-		filtered = filtered.filter(func(entry: Dictionary) -> bool: return PRIMARY_TYPES.has(StringName(entry.get("type_id", ""))))
+		filtered = filtered.filter(func(entry: Dictionary) -> bool: return display_category(entry) == _selected_category)
 	filtered.sort_custom(_reference_order)
 	for display_group in DISPLAY_GROUPS:
 		var group_entries: Array[Dictionary] = []
@@ -146,23 +152,13 @@ func _render_entries(previous_scroll: int = -1) -> void:
 		group.set_meta("node_palette_display_category", display_group)
 		group.add_theme_constant_override("separation", 2)
 		items.add_child(group)
-		var heading_row := HBoxContainer.new()
-		heading_row.custom_minimum_size.y = 18
-		heading_row.add_theme_constant_override("separation", 6)
-		heading_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		group.add_child(heading_row)
-		var dot := Label.new()
-		dot.text = "●"
-		dot.add_theme_font_size_override("font_size", 11)
-		dot.add_theme_color_override("font_color", display_category_color(display_group))
-		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		heading_row.add_child(dot)
-		var heading := Label.new()
-		heading.text = display_category_title(display_group, _rendered_language)
-		heading.add_theme_color_override("font_color", Design.INK_SECONDARY)
-		heading.add_theme_font_size_override("font_size", 12)
-		heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		heading_row.add_child(heading)
+		if _search_open:
+			var heading := Label.new()
+			heading.text = display_category_title(display_group, _rendered_language)
+			heading.add_theme_color_override("font_color", display_category_color(display_group).darkened(0.25))
+			heading.add_theme_font_size_override("font_size", Design.CAPTION_FONT_SIZE)
+			heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			group.add_child(heading)
 		var cards := HBoxContainer.new()
 		cards.name = "Cards"
 		cards.add_theme_constant_override("separation", 0)
@@ -235,7 +231,7 @@ func _fit_thumbnail_slots() -> void:
 		return
 	var spare_per_card := 0.0
 	if is_instance_valid(panel) and not _search_open:
-		var usable := panel.size.x - 76.0 - maxf(0.0, items.get_child_count() - 1) * 10.0
+		var usable := panel.size.x - 28.0 - maxf(0.0, items.get_child_count() - 1) * 10.0
 		var minimum_sum := 0.0
 		for card in cards:
 			minimum_sum += card.minimum_slot_width()
@@ -247,16 +243,13 @@ func _fit_thumbnail_slots() -> void:
 
 
 static func display_category(entry: Dictionary) -> StringName:
-	var id := String(entry.get("type_id", ""))
-	var category := StringName(entry.get("category_id", &"other"))
-	if id.begins_with("input") or id == "dataset" or category == &"data_context":
-		return &"input"
-	if id.contains("softmax") or id.contains("classifier"):
-		return &"output"
-	if category == &"shape_output" or category == &"composition":
-		return &"shape"
-	if category == &"layers" or category == &"training":
-		return category
+	match VisualFamily.family([entry.get("type_id", "")]):
+		&"data": return &"input"
+		&"layer": return &"layers"
+		&"operation": return &"operations"
+		&"shape": return &"shape"
+		&"output": return &"output"
+		&"training": return &"training"
 	return &"other"
 
 
@@ -264,6 +257,7 @@ static func display_category_color(category: StringName) -> Color:
 	match category:
 		&"input": return Design.INPUT_WIRE
 		&"layers": return Design.LAYER_WIRE
+		&"operations": return Design.ACTIVATION_WIRE
 		&"shape": return Design.SHAPE_WIRE
 		&"output": return Design.OUTPUT_WIRE
 		&"training": return Design.TRAINING_WIRE
@@ -272,10 +266,11 @@ static func display_category_color(category: StringName) -> Color:
 
 static func display_category_title(category: StringName, language: String) -> String:
 	var titles := {
-		&"input": {"ru": "Вход", "en": "Input", "kz": "Кіріс"},
+		&"input": {"ru": "Данные", "en": "Data", "kz": "Деректер"},
+		&"operations": {"ru": "Операции", "en": "Operations", "kz": "Операциялар"},
 		&"layers": {"ru": "Слои", "en": "Layers", "kz": "Қабаттар"},
 		&"shape": {"ru": "Форма", "en": "Shape", "kz": "Пішін"},
-		&"output": {"ru": "Выход", "en": "Output", "kz": "Шығыс"},
+		&"output": {"ru": "Вывод", "en": "Output", "kz": "Шығыс"},
 		&"training": {"ru": "Обучение", "en": "Training", "kz": "Оқыту"},
 		&"other": {"ru": "Другие узлы", "en": "Other nodes", "kz": "Басқа түйіндер"},
 	}
@@ -405,8 +400,6 @@ func _sync_geometry(_preserve_position := false) -> void:
 	var height := _panel_height()
 	panel.position = Vector2(margin, viewport_size.y - DOCK_BOTTOM_MARGIN - height)
 	panel.size = Vector2(maxf(160.0, right_edge - margin * 2.0), height)
-	actions.position = Vector2(panel.get_rect().end.x - 56.0, panel.position.y + 18.0)
-	actions.size = Vector2(44, 96)
 	actions.visible = not _collapsed and visible
 	reopen_button.position = Vector2(margin, viewport_size.y - DOCK_BOTTOM_MARGIN - 44.0)
 	reopen_button.size = Vector2(150, 44)
@@ -428,10 +421,37 @@ func _on_viewport_size_changed() -> void:
 	_sync_geometry()
 
 
+func _refresh_category_selector() -> void:
+	if not is_instance_valid(category_selector):
+		return
+	category_selector.clear()
+	for category in DISPLAY_GROUPS:
+		if category == &"other":
+			continue
+		var icon := Design._icon("M12 5a7 7 0 1 0 0 14a7 7 0 0 0 0-14", display_category_color(category))
+		category_selector.add_icon_item(icon, display_category_title(category, glob.get_lang()))
+		if category == _selected_category:
+			category_selector.select(category_selector.item_count - 1)
+	category_selector.tooltip_text = "Группа узлов" if glob.get_lang() == "ru" else ("Түйіндер тобы" if glob.get_lang() == "kz" else "Node category")
+	search_button.text = "Все узлы" if glob.get_lang() == "ru" else ("Барлық түйіндер" if glob.get_lang() == "kz" else "All nodes")
+	search_button.icon = null
+	search_button.set_pressed_no_signal(_search_open)
+
+
+func _on_category_selected(index: int) -> void:
+	_selected_category = DISPLAY_GROUPS[index]
+	_search_open = false
+	search_header.hide()
+	search.text = ""
+	_refresh_category_selector()
+	_render_entries()
+	scroll.scroll_horizontal = 0
+	_sync_geometry()
+
+
 func _toggle_search() -> void:
 	_search_open = not _search_open
-	search_button.text = ""
-	search_button.icon = Design._icon("M4 12h1M11 12h1M18 12h1", Design.INK_SECONDARY)
+	_refresh_category_selector()
 	search_header.visible = _search_open
 	if _search_open:
 		search.grab_focus()
@@ -554,8 +574,7 @@ func reuse_project_styles() -> void:
 	# Native controls share the Claude palette and retain the original drag API.
 	panel_background.material = null
 	panel_background.color = Color.TRANSPARENT
-	var surface := Design.box(Design.CANVAS, Design.LINE, 28, Vector2(14, 8))
-	surface.content_margin_right = 62
+	var surface := Design.box(Design.CANVAS, Design.LINE, Design.CARD_RADIUS, Vector2(14, 8))
 	surface.shadow_color = Color(0.10, 0.14, 0.24, 0.04)
 	surface.shadow_size = 3
 	panel.add_theme_stylebox_override("panel", surface)
@@ -572,17 +591,22 @@ func reuse_project_styles() -> void:
 	search.add_theme_color_override("font_color", Design.INK)
 	search.add_theme_color_override("font_placeholder_color", Design.INK_MUTED)
 	search.add_theme_color_override("caret_color", Design.PRIMARY)
-	search.add_theme_stylebox_override("normal", Design.box(Design.FILL, Design.FILL, 12, Vector2(10, 8), 0))
-	search.add_theme_stylebox_override("focus", Design.focus_box(12))
+	search.add_theme_stylebox_override("normal", Design.box(Design.FILL, Design.FILL, Design.CONTROL_RADIUS, Vector2(10, 8), 0))
+	search.add_theme_stylebox_override("focus", Design.focus_box(Design.CONTROL_RADIUS))
 	search.placeholder_text = "Найти узел…" if glob.get_lang() == "ru" else ("Түйінді іздеу…" if glob.get_lang() == "kz" else "Find a node…")
-	search_button.text = ""
-	search_button.icon = Design._icon("M4 12h1M11 12h1M18 12h1", Design.INK_SECONDARY)
-	for button in [collapse_button, reopen_button, search_button]:
+	_refresh_category_selector()
+	for button in [collapse_button, reopen_button, search_button, category_selector]:
 		button.add_theme_color_override("font_color", Design.INK_SECONDARY)
-		button.add_theme_stylebox_override("normal", Design.box(Color.TRANSPARENT, Color.TRANSPARENT, 12, Vector2(8, 8), 0))
-		button.add_theme_stylebox_override("hover", Design.box(Design.FILL, Design.LINE_STRONG, 12, Vector2(8, 8)))
-		button.add_theme_stylebox_override("pressed", Design.box(Design.FILL_HOVER, Design.LINE_STRONG, 12, Vector2(8, 8)))
-		button.add_theme_stylebox_override("focus", Design.focus_box(12))
+		button.add_theme_stylebox_override("normal", Design.box(Color.TRANSPARENT, Color.TRANSPARENT, Design.CONTROL_RADIUS, Vector2(8, 8), 0))
+		button.add_theme_stylebox_override("hover", Design.box(Design.FILL, Design.LINE_STRONG, Design.CONTROL_RADIUS, Vector2(8, 8)))
+		button.add_theme_stylebox_override("pressed", Design.box(Design.FILL_HOVER, Design.LINE_STRONG, Design.CONTROL_RADIUS, Vector2(8, 8)))
+		button.add_theme_stylebox_override("focus", Design.focus_box(Design.CONTROL_RADIUS))
+	category_selector.add_theme_color_override("icon_normal_color", Color.WHITE)
+	category_selector.add_theme_color_override("icon_hover_color", Color.WHITE)
+	category_selector.add_theme_color_override("icon_pressed_color", Color.WHITE)
+	category_selector.add_theme_font_size_override("font_size", Design.CAPTION_FONT_SIZE)
+	search_button.add_theme_font_size_override("font_size", Design.CAPTION_FONT_SIZE)
+	search_button.add_theme_stylebox_override("pressed", Design.box(Design.PRIMARY_SOFT, Design.PRIMARY, Design.CONTROL_RADIUS, Vector2(8, 8)))
 	collapse_button.tooltip_text = "Скрыть узлы" if glob.get_lang() == "ru" else "Hide nodes"
 	reopen_button.tooltip_text = "Добавить узел" if glob.get_lang() == "ru" else "Add a node"
 	reopen_button.text = "+ Узлы" if glob.get_lang() == "ru" else ("+ Түйіндер" if glob.get_lang() == "kz" else "+ Nodes")

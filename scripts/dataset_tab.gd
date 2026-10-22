@@ -211,7 +211,7 @@ func _build() -> void:
 	_file_dialog.files_selected.connect(func(paths): import_paths(Array(paths)))
 	_folder_dialog = _file_picker(FileDialog.FILE_MODE_OPEN_DIR, [])
 	_folder_dialog.dir_selected.connect(func(path): import_paths([path]))
-	_export_dialog = _file_picker(FileDialog.FILE_MODE_SAVE_FILE, ["*.json; Датасет Neuralese (с изображениями)", "*.csv; CSV (числа и текст)"])
+	_export_dialog = _file_picker(FileDialog.FILE_MODE_SAVE_FILE, ["*.json; Neuralese (данные и настройки)", "*.csv; CSV (только значения таблицы)"])
 	_export_dialog.file_selected.connect(_export_file)
 	_show_overview()
 	_sync_actions()
@@ -555,7 +555,8 @@ func _show_overview() -> void:
 	seed_field.value_changed.connect(func(value): model.studio().split_seed = int(value); _document_changed(model))
 	_quality_label = _label(_inspector_body, _quality_text(), 12, _quality_color())
 	_quality_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_button(_inspector_body, "Экспортировать набор", Vector2(246, 32), func(): _export_dialog.current_file = str(model.data.name) + ".json"; _export_dialog.popup_centered_ratio(0.65))
+	var export_button := _button(_inspector_body, "Экспортировать набор", Vector2(246, 32), func(): _export_dialog.current_file = str(model.data.name) + ".json"; _export_dialog.popup_centered_ratio(0.65))
+	export_button.tooltip_text = "JSON сохраняет классы, роли входов и ответов, параметры симуляции. CSV сохраняет только значения таблицы."
 	_label(_inspector_body, "На карточках: зелёная точка — обучение, жёлтая — проверка.\nГруппы карточек можно двигать за заголовок.", 11, WorkspaceStyle.MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 func _show_sample() -> void:

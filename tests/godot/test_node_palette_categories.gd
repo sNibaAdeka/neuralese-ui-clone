@@ -48,12 +48,24 @@ func _run() -> void:
 	palette.search = palette.get_node("Root/Panel/Content/Header/Controls/Search")
 	palette._entries = annotated
 	palette._render_entries()
-	_expect(_rendered_ids(palette.items) == palette.PRIMARY_TYPES, "Main dock must follow the reference order for all 13 real primary node types")
-	_expect(_rendered_categories(palette.items) == [&"input", &"layers", &"shape", &"output"], "Main dock must keep its four reference headings")
+	_expect(_rendered_ids(palette.items) == [&"input_1d", &"input", &"dataset"], "Default dock shows only its three data choices")
+	_expect(_rendered_categories(palette.items) == [&"input"], "Default category is data")
+	var reachable: Array[StringName] = []
+	for category in palette.DISPLAY_GROUPS:
+		if category == &"other":
+			continue
+		palette._selected_category = category
+		palette._render_entries()
+		for id in _rendered_ids(palette.items):
+			reachable.append(id)
+	_expect(_same_ids(reachable, ordered), "The six explicit categories reach every available creation ID exactly once")
+	_expect(palette_script.display_category({"type_id": &"maxpool"}) == &"operations" and palette_script.display_category({"type_id": &"dropout"}) == &"operations", "Weightless operations use their purple group")
+	_expect(palette_script.display_category({"type_id": &"conv2d"}) == &"layers" and palette_script.display_category({"type_id": &"gru_cell"}) == &"layers", "Trainable layers use their green group")
+	_expect(palette_script.display_category_title(&"input", "ru") == "Данные", "Data group includes inputs and datasets")
 	palette._search_open = true
 	palette._render_entries()
 	_expect(_same_ids(_rendered_ids(palette.items), ordered), "All nodes view must include all and only the available real cards")
-	_expect(_rendered_categories(palette.items) == [&"input", &"layers", &"shape", &"output", &"training"], "All nodes must expose the real training group")
+	_expect(_rendered_categories(palette.items) == [&"input", &"layers", &"operations", &"shape", &"output", &"training"], "All nodes exposes all six semantic families including training")
 	palette.search.text = "conv2d"
 	palette._on_search_changed("conv2d")
 	_expect(_rendered_ids(palette.items) == [&"conv2d"], "Search by stable id must keep the real matching node")

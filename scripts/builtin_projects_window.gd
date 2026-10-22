@@ -147,6 +147,10 @@ func _open_project(project_id: StringName) -> void:
 		_opening_project = false
 		_restore_after_transition()
 		return
+	# A fresh gallery copy may contain coordinates authored for older card
+	# sizes. Reuse the explicit arrange+fit action only for this new-copy path.
+	if is_instance_valid(glob.fg) and is_instance_valid(glob.fg.claude_shell):
+		glob.fg.claude_shell._arrange_model()
 	queue_free()
 
 

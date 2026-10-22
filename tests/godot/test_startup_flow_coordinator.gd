@@ -1,6 +1,7 @@
 extends SceneTree
 
 const StartupFlowCoordinator = preload("res://scripts/startup/startup_flow_coordinator.gd")
+const BuilderLaunchMode = preload("res://scripts/startup/builder_launch_mode.gd")
 
 var failures: Array[String] = []
 
@@ -587,7 +588,7 @@ func _test_standard_startup_does_not_open_browser_or_pilot_profile_form() -> voi
 		"ui": FakeUi.new(order, cookies),
 		"profile_onboarding": FakeProfileFlow.new(order, cookies.profile),
 		"state": FakeState.new(),
-		"pilot_mode": false,
+		"pilot_mode": BuilderLaunchMode.resolve(PackedStringArray()),
 	})
 	root.add_child(coordinator)
 	var result: Dictionary = await coordinator.run_pre_workspace()

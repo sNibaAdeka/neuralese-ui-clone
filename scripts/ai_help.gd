@@ -23,6 +23,17 @@ var _transcribing := false
 @onready var user_message = _user_message.duplicate()
 @onready var ai_message = _ai_message.duplicate()
 
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	# Detached message templates remain owned by this menu. Live message copies
+	# are parented to the scroller and are freed through normal tree destruction.
+	for template in [user_message, ai_message]:
+		if is_instance_valid(template) and template.get_parent() == null:
+			template.free()
+	user_message = null
+	ai_message = null
+
 static var cached_scroller = null
 
 

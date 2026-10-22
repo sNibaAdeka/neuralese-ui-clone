@@ -58,12 +58,28 @@ func run(tree: SceneTree) -> void:
 				_expect(node.get_raw_values().max() > 0.0, "drawing produces real nonzero model input")
 	await tree.create_timer(0.2).timeout
 	await _shot(tree, "graph-1440.png")
+	for node in gm._graphs.values():
+		if node.get_script() == load("res://scripts/train_input.gd"):
+			node._advanced_toggle.pressed.emit()
+			await tree.create_timer(0.5).timeout
+			_expect(node.optimizer.visible and node.lr.visible, "training settings expand through the real button")
+			await _shot(tree, "training-settings-1440.png")
+			node._advanced_toggle.pressed.emit()
+			await tree.create_timer(0.5).timeout
+			_expect(not node.optimizer.visible and not node.lr.visible, "training settings collapse without losing controls")
+			break
+	await tree.create_timer(0.8).timeout
+	shell.axon_panel.open_panel()
 	await tree.create_timer(0.8).timeout
 	shell.axon_panel._show_explanation()
 	await _shot(tree, "axon-reaction.png")
 	await tree.create_timer(0.8).timeout
 	_expect(shell.axon_panel.mascot.frame_index == 0, "mascot reaction stops at rest")
 	shell.axon_panel.explanation.hide()
+	shell.axon_panel.close_panel()
+	await tree.create_timer(0.3).timeout
+	shell._fit_model()
+	await _settle_fit(tree, app, gm)
 	await _shot(tree, "graph-1440.png")
 	for item in [[1280,900],[1180,900],[1024,768],[768,900],[375,812]]:
 		tree.root.size = Vector2i(Vector2(item[0],item[1]) * render_scale)
@@ -71,6 +87,9 @@ func run(tree: SceneTree) -> void:
 		_expect(is_equal_approx(shell.get_viewport_rect().size.x, float(item[0])), "logical viewport width " + str(item[0]))
 		_expect(shell.get_combined_minimum_size().x <= float(item[0])+1, "shell fits width " + str(item[0]))
 		_expect(shell.get_global_rect().end.y <= app.space_begin.y + 1, "workspace clears shell at " + str(item[0]))
+		# Explicit Fit demonstrates the available whole-model action at each size.
+		shell._fit_model()
+		await _settle_fit(tree, app, gm)
 		await _shot(tree, "graph-" + str(item[0]) + ".png")
 		if int(item[0]) == 375:
 			shell.overflow.grab_focus()
@@ -258,3 +277,18 @@ func _collect_plot_templates(node: Node, output_templates: Array) -> void:
 		output_templates.append(node.line)
 	for child in node.get_children():
 		_collect_plot_templates(child, output_templates)
+
+func _settle_fit(tree: SceneTree, app, gm) -> void:
+	# Fit animates for 0.55s and then eases the remaining position/zoom. Capture
+	# the final real camera state rather than mistaking an intermediate frame
+	# for clipped layout. A deadline also catches a stalled transition.
+	var camera = app.main_cam
+	for step in 60:
+		await tree.create_timer(0.05).timeout
+		if not camera._go_active and absf(camera.zoom.x - camera.target_zoom) < 0.0001 and camera.position.distance_to(camera.target_position) < 0.2:
+			break
+	var bounds: Rect2 = camera._bbox_of(gm._graphs.values())
+	var projected := Rect2(camera.get_canvas_transform() * bounds.position, bounds.size * camera.zoom)
+	var geometry = load("res://scripts/claude_workspace_geometry.gd")
+	var canvas: Rect2 = geometry.graph_rect(camera.get_viewport_rect().size, app.space_begin, app.space_end)
+	_expect(canvas.grow(2).encloses(projected), "settled native Fit contains every graph card at " + str(int(camera.get_viewport_rect().size.x)))

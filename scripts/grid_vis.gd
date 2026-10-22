@@ -30,6 +30,15 @@ var _tile_index: Dictionary = {}
 
 var _filename_cache: Dictionary = {}
 
+func _notification(what: int) -> void:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	# Recycled tiles are detached Nodes, so tree destruction cannot free them.
+	for tile in _tile_pool:
+		if is_instance_valid(tile) and tile.get_parent() == null:
+			tile.free()
+	_tile_pool.clear()
+
 func _ready() -> void:
 	_prepare_caches()
 	_create_loading_overlay()

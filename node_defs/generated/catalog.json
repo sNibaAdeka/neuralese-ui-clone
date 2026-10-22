@@ -4344,7 +4344,9 @@
           "_change_rate",
           "_toggle_advanced",
           "_reference_control_hovered",
-          "_update_reference_chart"
+          "_update_reference_chart",
+          "_sync_settings_visibility",
+          "_hide_closed_settings_dropdown"
         ],
         "scene_components": [
           "res://scenes/base_graph.tscn",

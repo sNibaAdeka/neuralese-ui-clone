@@ -11,6 +11,14 @@ var _empty_labels: Label
 
 func _after_ready() -> void:
 	super()
+	# An empty editable title is also the card heading, so its localized
+	# placeholder needs the same readable ink as a saved title.
+	var title: LineEdit = $ColorRect/root/Label
+	title.set_meta(&"reference_preserve_style", true)
+	title.add_theme_color_override("font_color", _DESIGN.INK)
+	title.add_theme_color_override("font_placeholder_color", _DESIGN.INK)
+	title.add_theme_color_override("font_uneditable_color", _DESIGN.INK_SECONDARY)
+	title.add_theme_color_override("caret_color", _CLAUDE_SELECTION)
 	_reference_panel = Panel.new()
 	_reference_panel.name = "ProbabilityPanel"
 	_reference_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -28,7 +36,9 @@ func _after_ready() -> void:
 	_labels_toggle.z_index = 2
 	_labels_toggle.add_theme_font_size_override("font_size", 14)
 	_labels_toggle.add_theme_font_override("font", _CLAUDE_SANS)
-	_labels_toggle.add_theme_color_override("font_color", Color("b96325"))
+	for color_role in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		_labels_toggle.add_theme_color_override(color_role, _DESIGN.OUTPUT_INK)
+	_labels_toggle.add_theme_color_override("font_disabled_color", _DESIGN.INK_MUTED)
 	for state in ["normal", "hover", "pressed", "focus"]:
 		var style := StyleBoxFlat.new()
 		style.bg_color = Color("fff4e9") if state == "normal" else Color.WHITE

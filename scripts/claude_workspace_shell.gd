@@ -27,6 +27,7 @@ var _last_window := ""
 var _last_project_name := ""
 var _layout_pending := false
 var _geometry_pending := false
+var _overflow_items: Array[int] = []
 
 func _enter_tree() -> void:
 	# This shell already owns its theme and spacing; the legacy-scene adapter
@@ -143,17 +144,6 @@ func _ready() -> void:
 	for state in ["normal", "hover", "pressed", "disabled"]:
 		overflow.add_theme_stylebox_override(state, Design.box(Design.CANVAS if state == "normal" else Design.FILL, Color.TRANSPARENT, Design.CONTROL_RADIUS, Vector2(10, 4), 0))
 	var menu := overflow.get_popup()
-	menu.add_item("Отменить", 0)
-	menu.add_item("Повторить", 1)
-	menu.add_separator("", 100)
-	menu.add_item("Экспорт модели", 2)
-	menu.add_item("Профиль и настройки", 3)
-	menu.add_separator("", 101)
-	menu.add_item("Показать модель целиком", 4)
-	menu.add_item("Открыть Аксон", 5)
-	menu.add_item("Сохранить проект", 6)
-	menu.add_separator("", 102)
-	menu.add_item("Упорядочить схему", 7)
 	menu.id_pressed.connect(func(id: int):
 		match id:
 			0: _history_action(false)
@@ -271,7 +261,7 @@ func _process(_delta: float) -> void:
 		axon_panel.layout_for_workspace(glob.space_begin.y, 14.0)
 		var palette := glob.base_node.get_node_or_null("WIN_GRAPH/NodePalette") if is_instance_valid(glob.base_node) else null
 		if is_instance_valid(palette) and axon_panel.has_method("is_overlay_open"):
-			palette.visible = glob.curr_window == "graph" and not axon_panel.is_overlay_open()
+			palette.visible = glob.curr_window == "graph" and not axon_panel.is_overlay_open() and not palette.has_meta("dialog_palette_hidden")
 
 func _on_autosave_status_changed(state: StringName, _revision: int, _reason: String) -> void:
 	match state:
@@ -316,12 +306,7 @@ func _sync() -> void:
 	if status_row.visible != show_status:
 		status_row.visible = show_status
 		_request_layout()
-	overflow.get_popup().set_item_disabled(overflow.get_popup().get_item_index(0), buttons.undo.disabled)
-	overflow.get_popup().set_item_disabled(overflow.get_popup().get_item_index(1), buttons.redo.disabled)
-	overflow.get_popup().set_item_disabled(overflow.get_popup().get_item_index(2), not glob.loaded_project_once)
-	overflow.get_popup().set_item_disabled(overflow.get_popup().get_item_index(4), buttons.fit.disabled)
-	overflow.get_popup().set_item_disabled(overflow.get_popup().get_item_index(6), buttons.save.disabled)
-	overflow.get_popup().set_item_disabled(overflow.get_popup().get_item_index(7), buttons.fit.disabled)
+	_sync_overflow_menu()
 	var width: float = get_viewport_rect().size.x
 	if is_equal_approx(width, _last_width) and _last_window == glob.curr_window:
 		return
@@ -389,6 +374,7 @@ func _layout_rows() -> void:
 		button.expand_icon = width < 550.0
 		button.icon = null if width < 550.0 else button.get_meta("reference_active_icon" if button.button_pressed else "reference_icon", button.icon)
 	status_row.visible = busy or save_message == "Автосохранение…" or save_message.begins_with("Не удалось")
+	_sync_overflow_menu()
 	rows.queue_sort()
 	if not _geometry_pending:
 		_geometry_pending = true
@@ -472,3 +458,33 @@ func _history_action(redo_action: bool) -> void:
 		if redo_action: host._on_redo_pressed()
 		else: host._on_undo_pressed()
 	_sync()
+
+
+func _sync_overflow_menu() -> void:
+	# Keep one visible route to frequent actions. If a responsive layout hides
+	# one, retain its existing command ID in the keyboard-accessible menu.
+	var items: Array[int] = [0, 1, 100, 2, 3]
+	var hidden_primary: Array[int] = []
+	if not buttons.fit.visible and glob.curr_window == "graph": hidden_primary.append(4)
+	if not buttons.axon.visible: hidden_primary.append(5)
+	if not buttons.save.visible: hidden_primary.append(6)
+	if not hidden_primary.is_empty():
+		items.append(101)
+		items.append_array(hidden_primary)
+	if glob.curr_window == "graph": items.append_array([102, 7])
+	var menu := overflow.get_popup()
+	if items != _overflow_items:
+		var focused := menu.get_focused_item()
+		var focused_id := menu.get_item_id(focused) if focused >= 0 else -1
+		var captions := {0: "Отменить", 1: "Повторить", 2: "Экспорт модели", 3: "Профиль и настройки", 4: "Показать модель целиком", 5: "Открыть Аксон", 6: "Сохранить проект", 7: "Упорядочить схему"}
+		menu.clear()
+		for id in items:
+			if id >= 100: menu.add_separator("", id)
+			else: menu.add_item(captions[id], id)
+		_overflow_items = items
+		if focused_id >= 0 and menu.get_item_index(focused_id) >= 0:
+			menu.set_focused_item(menu.get_item_index(focused_id))
+	var disabled := {0: buttons.undo.disabled, 1: buttons.redo.disabled, 2: buttons.export.disabled, 4: buttons.fit.disabled, 6: buttons.save.disabled, 7: buttons.fit.disabled}
+	for id in disabled:
+		var index := menu.get_item_index(id)
+		if index >= 0: menu.set_item_disabled(index, disabled[id])

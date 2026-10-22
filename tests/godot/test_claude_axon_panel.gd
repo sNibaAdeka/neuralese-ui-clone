@@ -22,8 +22,14 @@ func _run() -> void:
 	_expect_font_weight(panel.theme.default_font, 600)
 	_expect_font_weight(panel._bold_font, 700)
 	_expect_font_weight(panel._strong_font, 800)
-	_expect(panel.visible, "dock opens on graph workspace")
-	_expect(panel.get_reserved_width() > 300, "desktop reserves right dock width")
+	_expect(not panel.visible and not panel.is_open, "contextual help stays closed until explicitly requested")
+	for width in [375, 768, 1024, 1440]:
+		root.size = Vector2i(width, 900)
+		await _settle()
+		panel.layout_for_workspace(80)
+		_expect(not panel.visible and panel.get_reserved_width() == 0, "initially closed help never occupies workspace after resize to %d" % width)
+	panel.open_panel()
+	_expect(panel.visible and panel.get_reserved_width() > 300, "explicit open reserves the desktop dock width")
 	_expect(panel._info.is_empty(), "no invented selected node")
 	_expect("без входа" in panel.explain_button.tooltip_text, "local explanation advertises no-login contract before activation")
 	_expect("Онлайн" in panel.next_button.tooltip_text and "вход" in panel.quiz_button.tooltip_text, "online actions disclose login before activation")
@@ -31,6 +37,9 @@ func _run() -> void:
 	_expect(panel.mascot.self_modulate.r > 1.0 and panel.mascot.self_modulate.r <= 1.1, "mascot has a subtle display-only brightness gain")
 	_expect(panel.mascot.SEQUENCES.blink == [1, 2, 3, 0] and is_equal_approx(panel.mascot._timer.wait_time, 0.12), "brightness change preserves cel sequence and timing")
 	_expect(not panel.explanation.visible, "no invented explanation")
+	# Explicit opening greets with a finite wave; let its reaction cooldown finish.
+	await create_timer(0.8).timeout
+	_expect(panel.mascot.frame_index == 0, "explicit-open greeting returns to rest")
 	panel.mascot.react("blink")
 	_expect(panel.mascot.frame_index == 1, "mascot starts an event-driven cel reaction")
 	await create_timer(0.8).timeout
@@ -114,6 +123,12 @@ func _run() -> void:
 			_expect(panel.is_open, "mobile close preserves desktop dock preference")
 	panel.close_panel()
 	_expect(not panel.visible and panel.get_reserved_width() == 0, "close releases reserved canvas")
+	panel.question.text = "Черновик после закрытия"
+	for width in [375, 768, 1024, 1440]:
+		root.size = Vector2i(width, 900)
+		await _settle()
+		_expect(not panel.visible and panel.get_reserved_width() == 0, "closed help does not reopen after viewport change to %d" % width)
+		_expect(panel.question.text == "Черновик после закрытия", "viewport changes preserve the closed draft")
 	panel.open_panel()
 	app.curr_window = "ds"
 	panel._update_visibility()

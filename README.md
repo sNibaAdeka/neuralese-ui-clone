@@ -1,4 +1,6 @@
-# Neuralese Frontend
+# Neuralese Builder — UI clone
+
+This is the independent [UI clone](https://github.com/sNibaAdeka/neuralese-ui-clone/tree/codex/claude-design-integration), on branch `codex/claude-design-integration`. Open the checked-out Godot project to run this version. Screenshots are not a separate web application. See the [diagnosis, changes, real screenshots and verification limits](docs/builder-diagnostics-2026-10-22.md).
 
 Neuralese Frontend is the desktop client for building, training, and testing neural network projects through a visual interface.
 
@@ -36,9 +38,11 @@ At runtime, the client initializes several singleton-like services (autoloads) f
 
 The frontend can switch connection mode for development/deployment contexts:
 
-- **Localhost** (default in this repo): `http://127.0.0.1:8000/`
-- **Remote**: hosted API endpoint
-- **LAN**: configurable local-network host
+- **Remote** (default): hosted API endpoint resolved by `scripts/network_mode.gd`.
+- **Localhost**: pass `--local-api` after `--`; uses `http://127.0.0.1:8081/`.
+- **LAN**: pass `--lan-api` for the configured local-network host.
+
+Local model training uses the Python runtime described below; it does not require a running HTTP backend. Remote assistant, account and server features still require their services.
 
 ---
 
@@ -69,18 +73,19 @@ The frontend can switch connection mode for development/deployment contexts:
 
 ### Prerequisites
 
-- **Godot 4.x** (project is configured with 4.6 feature flags).
-- A running Neuralese backend API (default expected at `127.0.0.1:8000`).
+- **Godot 4.7.1**, matching `project.godot` and the tests.
+- **Python 3.11** in a project environment for local training; source downloads do not contain an installed Python runtime.
 
 ### Steps
 
-1. Open this repository in Godot.
-2. Ensure backend is running.
-3. Run the main scene from the editor.
-4. If needed, adjust network mode in `scripts/glob.gd`:
-   - `NetMode.Localhost`
-   - `NetMode.Remote`
-   - `NetMode.LAN`
+1. Check out branch `codex/claude-design-integration` and import `project.godot` in Godot.
+2. For local training, follow [local_runtime/README.md](local_runtime/README.md) to prepare the pinned dependencies in `local_runtime/python/`. This directory stays out of Git.
+3. Run the main project with **F5**. A regular launch uses the builder startup. Classroom enrollment is an explicit [pilot mode](docs/builder-launch-mode.md).
+4. Create a project or open a bundled example. Saved graph positions are preserved; **More → Arrange model** explicitly arranges the current graph.
+
+From a terminal, `godot --path .` starts the project. For development against a local HTTP API use `godot --path . -- --local-api`; no source edit is needed.
+
+Opening source in the editor is not a packaged release. Windows/macOS exports need their platform runtime payload and manifest. Physical EV3, remote Axon and account flows require their respective hardware/services and cannot be validated by local editor tests alone.
 
 ---
 

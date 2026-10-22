@@ -27,7 +27,7 @@ func _after_ready():
 	dropout.color = Color.WHITE
 	dropout.text_color = Color.WHITE
 	dropout.label.set_meta(&"reference_preserve_style", true)
-	dropout.label.add_theme_color_override("font_color", Color("5557c5"))
+	dropout.label.add_theme_color_override("font_color", _DESIGN.ACTIVATION_INK)
 	activ_show("none")
 
 func _config_field(field: StringName, value: Variant):

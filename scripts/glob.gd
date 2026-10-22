@@ -26,22 +26,18 @@ const WINDOW_DBG: bool = 0
 const RUN_TESTS_DEBUG_ONLY: bool = false
 ## Enables the controlled classroom/pilot launch flow.
 ##
-## When false, Neuralese uses the ordinary browser sign-in flow and never asks
-## for the pilot-only “Who is working now?” identity.  Keep this false for
-## normal Editor work and regular releases; set it true only for a pilot build
-## or while explicitly testing that flow.
-const PILOT_MODE: bool = true
+## Ordinary Editor and regular release launches do not ask the pilot-only
+## “Who is working now?” identity. Opt in with the --pilot user argument or
+## the neuralese_pilot export custom feature; enrollment configuration alone
+## does not select the pilot launch flow.
+var PILOT_MODE: bool = preload("res://scripts/startup/builder_launch_mode.gd").resolve(OS.get_cmdline_user_args(), OS.has_feature("neuralese_pilot"))
 ## Development fallback for the pilot build.
 ##
 ## A packaged pilot build receives these values through its process environment.
 ## Godot Editor does not always inherit those variables, so a developer may put
 ## the same values here for a local pilot run.  Keep real enrollment tokens
 ## local; this dictionary is intentionally empty in version control.
-var PILOT_ENROLLMENT_CONFIG: Dictionary = {
-	"enrollment_id": "neuralese-editor-pilot",
-	"enrollment_token": "8f9b04f6a47947c853944ee11ecadfe9f2248b80625e9788d72a01080ddb787c",
-	"account_role": "student",
-}
+var PILOT_ENROLLMENT_CONFIG: Dictionary = {}
 const MENU_PLAY_AROUND: bool = false
 const DEBUG_RELOAD_LESSONS: bool = 0
 const IMPORT_LESSON_DIRS: bool = 0

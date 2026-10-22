@@ -15,7 +15,7 @@ const PANEL_WIDTH := 377.0
 
 var mascot: TextureRect
 var host: Control
-var is_open := true
+var is_open := false
 var _overlay_requested := false
 var context_label: Label
 var context_lead: Label

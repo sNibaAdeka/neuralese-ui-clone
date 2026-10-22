@@ -8,6 +8,13 @@ if [[ ! -f ".godot/global_script_class_cache.cfg" ]]; then
 fi
 
 TESTS=(
+  "test_ai_help_template_lifecycle.gd:PASS test_ai_help_template_lifecycle"
+  "test_grid_tile_pool_lifecycle.gd:PASS test_grid_tile_pool_lifecycle"
+  "test_builtin_copy_initial_layout.tscn:PASS test_builtin_copy_initial_layout"
+  "test_builder_launch_mode.gd:PASS test_builder_launch_mode"
+  "test_duplicate_node_history.gd:PASS test_duplicate_node_history"
+  "test_json_dataset_integrity.gd:PASS test_json_dataset_integrity"
+  "test_node_palette_group_navigation.gd:PASS test_node_palette_group_navigation"
   "test_training_worker_bootstrap_shutdown.gd:PASS test_training_worker_bootstrap_shutdown"
   "test_csv_import_integrity.gd:PASS test_csv_import_integrity"
   "test_export_result_failures.gd:PASS test_export_result_failures"
@@ -116,7 +123,7 @@ TESTS=(
   # DEPRECATED: Button format strictly asserts outdated dictionary without 'can_go: true'
   # "test_dialog_spec.gd:PASS test_dialog_spec"
   "test_markdown_to_bbcode.gd:PASS test_markdown_to_bbcode"
-  # DEPRECATED: Test asserts palette cannot be hidden by dialog, which contradicts new startup logic
+  # Legacy dialog theme expectations; hide/restore coverage is in test_ui_manager_dialog.
   # "test_multipurpose_dialog.gd:PASS test_multipurpose_dialog"
   "test_ui_manager_dialog.gd:PASS test_ui_manager_dialog"
   "test_platform_input.gd:platform input tests: PASS"
@@ -141,14 +148,17 @@ for entry in "${TESTS[@]}"; do
     continue
   fi
   quit_after=300
+  if [[ "$file" == "test_builtin_copy_initial_layout.tscn" ]]; then
+    quit_after=2400
+  fi
   if [[ "$file" == "test_audit_training_start_result.tscn" ]]; then
     quit_after=1200
   fi
   export NEURALESE_ISOLATED_TEST="$default_isolated_test"
-  if [[ "$file" == "test_training_worker_bootstrap_shutdown.gd" || "$file" == "test_audit_connection_text_lifecycle.gd" || "$file" == "test_audit_training_start_result.tscn" || "$file" == "test_data_workspace_browsing.tscn" || "$file" == "test_csv_import_integrity.gd" || "$file" == "test_export_result_failures.gd" || "$file" == "test_node_visual_family.gd" ]]; then
+  if [[ "$file" == "test_builtin_copy_initial_layout.tscn" || "$file" == "test_duplicate_node_history.gd" || "$file" == "test_json_dataset_integrity.gd" || "$file" == "test_training_worker_bootstrap_shutdown.gd" || "$file" == "test_audit_connection_text_lifecycle.gd" || "$file" == "test_audit_training_start_result.tscn" || "$file" == "test_data_workspace_browsing.tscn" || "$file" == "test_csv_import_integrity.gd" || "$file" == "test_export_result_failures.gd" || "$file" == "test_node_visual_family.gd" ]]; then
     export NEURALESE_ISOLATED_TEST=1
   fi
-  if [[ "$file" == "test_dense_reference_presentation.gd" || "$file" == "test_reference_training_cards.gd" ]]; then
+  if [[ "$file" == "test_claude_axon_panel.gd" || "$file" == "test_dense_reference_presentation.gd" || "$file" == "test_reference_training_cards.gd" ]]; then
     quit_after=900
   fi
   if [[ "$file" == "test_simulation_dataset_generator.gd" ]]; then

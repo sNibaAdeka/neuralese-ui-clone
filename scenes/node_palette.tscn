@@ -44,20 +44,45 @@ color = Color(0, 0, 0, 0)
 
 [node name="Content" type="VBoxContainer" parent="Root/Panel"]
 layout_mode = 2
-theme_override_constants/separation = 0
+theme_override_constants/separation = 4
 mouse_filter = 2
+
+[node name="Categories" type="HBoxContainer" parent="Root/Panel/Content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Category" type="OptionButton" parent="Root/Panel/Content/Categories"]
+custom_minimum_size = Vector2(126, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+
+[node name="SearchToggle" type="Button" parent="Root/Panel/Content/Categories"]
+custom_minimum_size = Vector2(96, 44)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+text = "All nodes"
+toggle_mode = true
+
+[node name="Collapse" type="Button" parent="Root/Panel/Content/Categories"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+mouse_default_cursor_shape = 2
+tooltip_text = "Hide node palette"
+text = "⌄"
+theme_override_font_sizes/font_size = 22
 
 [node name="Header" type="MarginContainer" parent="Root/Panel/Content"]
 visible = false
 custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
-theme_override_constants/margin_bottom = 6
 
 [node name="Controls" type="HBoxContainer" parent="Root/Panel/Content/Header"]
 layout_mode = 2
 
 [node name="Search" type="LineEdit" parent="Root/Panel/Content/Header/Controls"]
-custom_minimum_size = Vector2(0, 38)
+custom_minimum_size = Vector2(0, 44)
 layout_mode = 2
 size_flags_horizontal = 3
 placeholder_text = "Find a node..."
@@ -73,26 +98,6 @@ follow_focus = true
 [node name="Items" type="HBoxContainer" parent="Root/Panel/Content/Scroll"]
 layout_mode = 2
 theme_override_constants/separation = 10
-
-[node name="Actions" type="VBoxContainer" parent="Root"]
-layout_mode = 0
-theme_override_constants/separation = 8
-
-[node name="SearchToggle" type="Button" parent="Root/Actions"]
-custom_minimum_size = Vector2(44, 44)
-layout_mode = 2
-mouse_default_cursor_shape = 2
-tooltip_text = "Search all nodes"
-text = ""
-theme_override_font_sizes/font_size = 24
-
-[node name="Collapse" type="Button" parent="Root/Actions"]
-custom_minimum_size = Vector2(44, 44)
-layout_mode = 2
-mouse_default_cursor_shape = 2
-tooltip_text = "Hide node palette"
-text = "⌄"
-theme_override_font_sizes/font_size = 22
 
 [node name="Reopen" type="Button" parent="Root"]
 visible = false

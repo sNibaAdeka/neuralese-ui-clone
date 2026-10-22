@@ -55,7 +55,7 @@ func _window_hide():
 func _set_canvas_layer_visible(node_path: NodePath, value: bool) -> void:
 	var canvas_layer := get_node_or_null(node_path) as CanvasLayer
 	if is_instance_valid(canvas_layer):
-		canvas_layer.visible = value
+		canvas_layer.visible = value and not canvas_layer.has_meta("dialog_palette_hidden")
 
 
 func window_hide():

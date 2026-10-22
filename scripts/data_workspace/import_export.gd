@@ -206,18 +206,26 @@ static func _json_dataset(parsed: Variant, title: String) -> Dictionary:
 	var names: Variant = parsed.get("columns", parsed.get("col_names", []))
 	var rows: Variant = parsed.get("rows", parsed.get("arr", []))
 	if not names is Array or not rows is Array or names.size() < 2: return {"error": "Нет схемы columns/col_names и rows/arr"}
-	var outputs := int(parsed.get("outputs_from", names.size() - 1))
-	if outputs < 1 or outputs >= names.size(): return {"error": "outputs_from должен разделять входы и ответы"}
+	var output_value: Variant = parsed.get("outputs_from", names.size() - 1)
+	if not (output_value is int or output_value is float) or not is_finite(float(output_value)) or float(output_value) != floor(float(output_value)):
+		return {"error": "outputs_from должен быть целым числом"}
+	if float(output_value) < 1 or float(output_value) >= names.size(): return {"error": "outputs_from должен разделять входы и ответы"}
+	var outputs := int(output_value)
 	var document = Document.new()
 	var metadata: Variant = parsed.get("metadata", {})
-	if not metadata is Dictionary: return {"error": "metadata должен быть объектом"}
+	if not metadata is Dictionary or not _is_json_data(metadata): return {"error": "metadata должен содержать только данные JSON"}
 	var studio: Variant = parsed.get("studio", metadata.get("studio", {}))
-	if not studio is Dictionary or not studio.get("classes", []) is Array: return {"error": "Некорректные параметры набора"}
+	if not studio is Dictionary or not _is_json_data(studio) or not studio.get("classes", []) is Array: return {"error": "Некорректные параметры набора"}
 	for name in names:
 		if not name is String: return {"error": "Названия полей должны быть строками"}
 	if not studio.get("classes", []).is_empty() and studio.classes.size() != names.size() - outputs: return {"error": "Количество классов не совпадает с выходами"}
-	document.attach({"name": str(parsed.get("name", title)), "arr": [], "col_names": names.duplicate(), "outputs_from": outputs, "cache": {}, "col_args": [], "metadata": {"studio": studio.duplicate(true)}})
+	var restored_metadata: Dictionary = metadata.duplicate(true)
+	restored_metadata["studio"] = studio.duplicate(true)
+	document.attach({"name": str(parsed.get("name", title)), "arr": [], "col_names": names.duplicate(), "outputs_from": outputs, "cache": {}, "col_args": [], "metadata": restored_metadata})
 	if document.studio().is_empty(): document.data.metadata.erase("studio"); document.attach(document.data)
+	# _append creates local family IDs. Restore the exported IDs after loading so
+	# round trips retain augmentation families and their train/validation split.
+	var restored_studio := document.studio().duplicate(true)
 	for index in rows.size():
 		var row: Variant = rows[index]
 		if not row is Array or row.size() != names.size(): return {"error": "Некорректная ширина строки %d" % (index + 1)}
@@ -230,26 +238,112 @@ static func _json_dataset(parsed: Variant, title: String) -> Dictionary:
 				if image.load_png_from_buffer(Marshalls.base64_to_raw(item.get("png", ""))) != OK: return {"error": "Повреждённое изображение в строке %d" % (index + 1)}
 				if image.get_width() > 4096 or image.get_height() > 4096: return {"error": "Изображение больше 4096 пикселей"}
 				raw.append(ImageTexture.create_from_image(image))
-			elif item is Dictionary:
-				raw.append(item.get("num", item.get("val", item.get("text", ""))))
-			else: raw.append(item)
+			else:
+				var value: Variant = item.get("num", item.get("val", item.get("text", null))) if item is Dictionary else item
+				if document.field_type(column) in ["float", "num"]:
+					var validated := _json_number(value, document.field_type(column) == "num")
+					if validated.has("error"):
+						return {"error": "Строка %d, столбец %d (%s): %s" % [index + 1, column + 1, names[column], validated.error], "row": index + 1, "column": column + 1}
+					value = validated.value
+				raw.append(value)
 		document._append(raw)
+	for key in ["family_ids", "next_family"]:
+		if restored_studio.has(key): document.studio()[key] = restored_studio[key]
 	document.refresh_cache()
 	return {"dataset": document.data, "errors": []}
 
+static func _json_number(value: Variant, integer: bool) -> Dictionary:
+	if integer and value is int: return {"value": value}
+	if value is String:
+		value = value.strip_edges()
+		if value.is_empty() or not value.is_valid_float(): return {"error": "Ожидается число"}
+		# Parse integer strings directly: passing through float would round valid
+		# 64-bit values above 2^53 before the document stores them as integers.
+		if integer and value.is_valid_int():
+			var negative: bool = value.begins_with("-")
+			var digits: String = value.trim_prefix("-").trim_prefix("+").lstrip("0")
+			var limit := "9223372036854775808" if negative else "9223372036854775807"
+			if digits.length() > limit.length() or (digits.length() == limit.length() and digits > limit):
+				return {"error": "Ожидается целое число в допустимом диапазоне"}
+			return {"value": value.to_int()}
+	elif not (value is int or value is float):
+		return {"error": "Ожидается число"}
+	var number := float(value)
+	if not is_finite(number): return {"error": "Число должно быть конечным"}
+	if integer and (number != floor(number) or number < -9223372036854775808.0 or number >= 9223372036854775808.0):
+		return {"error": "Ожидается целое число в допустимом диапазоне"}
+	return {"value": int(number) if integer else number}
+
+## Accept data containers only; never encode Resources, Objects or Godot values
+## as strings. The depth guard also rejects cyclic in-memory metadata on export.
+static func _is_json_data(value: Variant, depth: int = 0) -> bool:
+	if depth > 64: return false
+	if value == null or value is bool or value is int or value is String: return true
+	if value is float: return is_finite(value)
+	if value is Array:
+		for item in value:
+			if not _is_json_data(item, depth + 1): return false
+		return true
+	if value is Dictionary:
+		for key in value:
+			if not key is String or not _is_json_data(value[key], depth + 1): return false
+		return true
+	return false
+
+## Explicit data-only encodings for the primitive values used by simulation
+## bindings, ranges and episode paths. Readers receive ordinary JSON arrays and
+## strings, which simulation schemas already accept; no objects are recreated.
+static func _metadata_json_value(value: Variant, depth: int = 0) -> Dictionary:
+	if depth > 64: return {"error": "Слишком глубокая структура параметров"}
+	if value is StringName: return {"value": str(value)}
+	if value is Vector2:
+		if not value.is_finite(): return {"error": "Неконечные координаты"}
+		return {"value": [value.x, value.y]}
+	if value is Array or value is PackedStringArray or value is PackedInt32Array or value is PackedInt64Array or value is PackedFloat32Array or value is PackedFloat64Array or value is PackedVector2Array:
+		var result: Array = []
+		for item in value:
+			var converted := _metadata_json_value(item, depth + 1)
+			if converted.has("error"): return converted
+			result.append(converted.value)
+		return {"value": result}
+	if value is Dictionary:
+		var result: Dictionary = {}
+		for key in value:
+			if not (key is String or key is StringName): return {"error": "Ключ параметра должен быть строкой"}
+			var converted := _metadata_json_value(value[key], depth + 1)
+			if converted.has("error"): return converted
+			result[str(key)] = converted.value
+		return {"value": result}
+	if _is_json_data(value): return {"value": value}
+	return {"error": "Значение несовместимо с JSON"}
+
 static func portable(document) -> Dictionary:
+	var source_metadata: Variant = document.data.get("metadata", {})
+	if not source_metadata is Dictionary: return {"error": "Параметры набора должны быть объектом"}
+	var converted := _metadata_json_value(source_metadata)
+	if converted.has("error"): return converted
+	var metadata: Dictionary = converted.value
 	var rows: Array = []
 	for row in document.row_count():
 		var values: Array = []
 		for column in document.column_count():
 			var item: Variant = document.value(row, column)
-			if item is Texture2D: values.append({"png": Marshalls.raw_to_base64(item.get_image().save_png_to_buffer())})
+			if document.field_type(column) in ["float", "num"]:
+				var validated := _json_number(item, document.field_type(column) == "num")
+				if validated.has("error"):
+					return {"error": "Строка %d, столбец %d: %s" % [row + 1, column + 1, validated.error]}
+				values.append(validated.value)
+			elif item is Texture2D: values.append({"png": Marshalls.raw_to_base64(item.get_image().save_png_to_buffer())})
 			else: values.append(item)
 		rows.append(values)
-	return {"format": "neuralese.dataset.v1", "name": document.data.name, "columns": document.data.col_names, "outputs_from": document.data.outputs_from, "studio": document.studio(), "rows": rows}
+	return {"format": "neuralese.dataset.v1", "name": document.data.name, "columns": document.data.col_names, "outputs_from": document.data.outputs_from, "studio": metadata.get("studio", {}).duplicate(true), "metadata": metadata, "rows": rows}
 
 static func export_file(document, path: String) -> Error:
 	if path.get_extension().to_lower() == "csv" and document.kind() == "images": return ERR_UNAVAILABLE
+	var payload: Dictionary = {}
+	if path.get_extension().to_lower() != "csv":
+		payload = portable(document)
+		if payload.has("error"): return ERR_INVALID_DATA
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null: return FileAccess.get_open_error()
 	if path.get_extension().to_lower() == "csv":
@@ -260,5 +354,5 @@ static func export_file(document, path: String) -> Error:
 			var cells := PackedStringArray()
 			for item in document.values(row): cells.append(str(item))
 			file.store_csv_line(cells)
-	else: file.store_string(JSON.stringify(portable(document), "\t"))
+	else: file.store_string(JSON.stringify(payload, "\t", true, true))
 	return OK
