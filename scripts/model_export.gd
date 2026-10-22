@@ -243,7 +243,8 @@ func _add_robot_export_button() -> void:
 	button.text = "EV3 · Настроить и экспортировать…"
 	button.tooltip_text = "Локальная обученная модель → датчики и моторы → пакет для ручного переноса"
 	button.theme = Design.create_theme()
-	button.position = Vector2(40, 273)
+	# Keep the added action within the existing modal's bottom padding.
+	button.position = Vector2(40, 258)
 	button.size = Vector2(341, 36)
 	$ColorRect.add_child(button)
 	button.pressed.connect(_open_robot_export)

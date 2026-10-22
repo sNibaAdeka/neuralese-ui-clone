@@ -51,6 +51,11 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 	check(dialog.size.x == 375 and dialog._body.size.x <= dialog._scroll.size.x, "375px responsive scroll geometry")
+	check(dialog.get_node("Background").color == Color.WHITE, "native window explicitly paints readable light background")
+	check(dialog._scroll.get_global_rect().end.x <= 359, "scroll respects narrow window right margin")
+	for field in dialog._body.find_children("*", "Control", true, false):
+		if field.is_visible_in_tree():
+			check(field.get_global_rect().end.x <= 359, "visible field fits actual narrow window: " + str(field.name))
 	check(dialog._actions.all(func(button): return not is_instance_valid(button) or button.size.x <= 343), "footer actions fit narrow dialog")
 	var action_count := dialog._actions.size()
 	dialog._draw_mapping()

@@ -39,6 +39,13 @@ func _ready() -> void:
 	wrap_controls = false
 	theme = Design.create_theme()
 	close_requested.connect(_cancel)
+	# A native Window does not inherit the workspace's canvas background.
+	var background := ColorRect.new()
+	background.name = "Background"
+	background.color = Design.CANVAS
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(background)
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for edge in ["left", "right", "top", "bottom"]:
@@ -48,7 +55,7 @@ func _ready() -> void:
 	outer.add_theme_constant_override("separation", 10)
 	margin.add_child(outer)
 	_meta = _label(outer, "Проверяем локальную обученную модель…")
-	_label(outer, "Пакет для ручного переноса на EV3. На устройстве не проверено. Подключение к роботу не выполняется.")
+	_label(outer, "Перенос на EV3 — вручную. Подключение к роботу не выполняется.")
 	var scroll := ScrollContainer.new()
 	_scroll = scroll
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -85,7 +92,8 @@ func _ready() -> void:
 	_bundle_name.text = "ev3_bundle"
 	_body.add_child(_bundle_name)
 	_ranges_confirmed = CheckBox.new()
-	_ranges_confirmed.text = "Диапазоны и команды проверены"
+	_ranges_confirmed.text = "Настройки проверены"
+	_ranges_confirmed.tooltip_text = "Диапазоны датчиков и команды моторов проверены по обучающим данным"
 	_body.add_child(_ranges_confirmed)
 	_status = _label(_body, "")
 	_status.custom_minimum_size.y = 58
@@ -95,7 +103,8 @@ func _ready() -> void:
 	_button(buttons, "Сохранить настройки", _validate.bind("save"))
 	_button(buttons, "Экспорт пакета", _validate.bind("export"))
 	var cancel := Button.new()
-	cancel.text = "Закрыть · отменить правки"
+	cancel.text = "Закрыть"
+	cancel.tooltip_text = "Несохранённые изменения будут отменены"
 	cancel.pressed.connect(_cancel)
 	buttons.add_child(cancel)
 	_picker = FileDialog.new()
@@ -145,7 +154,7 @@ func open_for(input: Node, project_key: String, provider: Node = null) -> void:
 		return
 	_model = meta.get("model", {}).duplicate(true)
 	_scope = JSON.stringify([project_key, str(input.get("context_id")), str(_model.get("model_sha256", ""))])
-	_meta.text = "EV3 · %s входов → %s выходов" % [meta.get("model", {}).get("input_size", "?"), meta.get("model", {}).get("output_size", "?")]
+	_meta.text = "EV3 · Входы: %d · Выходы: %d" % [int(_model.get("input_size", 0)), int(_model.get("output_size", 0))]
 	var registry: Dictionary = await runtime.robot_platforms()
 	if not _current(generation): return
 	if registry.get("status") != "ok":
@@ -218,8 +227,10 @@ func _number(parent: Node, caption: String, initial: float, integer: bool = fals
 func _scale_controls(parent: Node, entry: Dictionary, native: Dictionary = {}, sensor: bool = false) -> Dictionary:
 	var scale: Dictionary = entry.get("scale", {"kind": "identity"}).duplicate(true)
 	var kind := OptionButton.new()
-	kind.add_item("Как есть (identity)")
-	kind.add_item("Диапазон → диапазон (linear)")
+	kind.fit_to_longest_item = false
+	kind.clip_text = true
+	kind.add_item("Без преобразования")
+	kind.add_item("Изменить диапазон")
 	if scale.get("kind", "identity") not in ["identity", "linear"]:
 		kind.add_item("Неизвестный тип: " + str(scale.kind))
 		kind.select(2)
@@ -255,6 +266,7 @@ func _add_row(section: String, index: int, entry: Dictionary) -> void:
 	ordinal.text = ("Вход " if section == "inputs" else "Мотор ") + str(index + 1)
 	top.add_child(ordinal)
 	var channel := OptionButton.new()
+	channel.fit_to_longest_item = false
 	channel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	channel.clip_text = true
 	top.add_child(channel)
@@ -291,6 +303,8 @@ func _add_row(section: String, index: int, entry: Dictionary) -> void:
 		row["scale"] = _scale_controls(box, entry, native, true)
 	else:
 		var mode := OptionButton.new()
+		mode.fit_to_longest_item = false
+		mode.clip_text = true
 		for value in ["Выход модели", "Наиболее вероятный класс", "Порог"]: mode.add_item(value)
 		var selected_mode := ["direct", "argmax", "threshold"].find(entry.get("mode", "direct"))
 		if selected_mode < 0:
